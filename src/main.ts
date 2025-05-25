@@ -5,6 +5,7 @@ import { definitionMarker } from './editor/decoration';
 import { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { DefManager, initDefFileManager } from './core/def-file-manager';
+import { DefinitionManagerView, DEFINITION_MANAGER_VIEW_TYPE } from './editor/definition-manager-view';
 import { Definition } from './core/model';
 import { getDefinitionPopover, initDefinitionPopover } from './editor/definition-popover';
 import { postProcessor } from './editor/md-postprocessor';
@@ -17,22 +18,45 @@ import { initDefinitionModal } from './editor/mobile/definition-modal';
 import { FMSuggestModal } from './editor/frontmatter-suggest-modal';
 import { registerDefFile } from './editor/def-file-registration';
 import { DefFileType } from './core/file-type';
+import { DefFileUpdater } from './core/def-file-updater';
+import { FlashcardManager } from './core/flashcard-manager';
+import { Modal } from 'obsidian';
+
 
 export default class NoteDefinition extends Plugin {
 	activeEditorExtensions: Extension[] = [];
 	defManager: DefManager;
 	fileExplorerDeco: FileExplorerDecoration;
+	flashcardManager: FlashcardManager;
 
 	async onload() {
 		// Settings are injected into global object
-		const settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData())
+		const data = await this.loadData();
+		const settings = Object.assign({}, DEFAULT_SETTINGS, data)
 		injectGlobals(settings, this.app, window);
+
+		// 初始化闪卡管理器
+		this.flashcardManager = new FlashcardManager(this.app);
+		if (data) {
+			await this.flashcardManager.loadData(data);
+		}
 
 		this.registerEvent(this.app.workspace.on('window-open', (win: WorkspaceWindow, newWindow: Window) => {
 			injectGlobals(settings, this.app, newWindow);
 		}))
 
 		logDebug("Load note definition plugin");
+
+		// 注册定义管理器视图
+		this.registerView(
+			DEFINITION_MANAGER_VIEW_TYPE,
+			(leaf) => new DefinitionManagerView(leaf)
+		);
+
+		// 添加侧边栏图标
+		this.addRibbonIcon('book-open', 'Definition Manager', () => {
+			this.activateDefinitionManagerView();
+		});
 
 		initDefinitionPopover(this);
 		initDefinitionModal(this.app);
@@ -47,13 +71,33 @@ export default class NoteDefinition extends Plugin {
 		this.addSettingTab(new SettingsTab(this.app, this, this.saveSettings.bind(this)));
 		this.registerMarkdownPostProcessor(postProcessor);
 
+		// 定期保存闪卡数据（每5分钟）
+		this.registerInterval(window.setInterval(() => {
+			this.saveFlashcardData();
+		}, 5 * 60 * 1000));
+
 		this.fileExplorerDeco.run();
 	}
 
 	async saveSettings() {
-		await this.saveData(window.NoteDefinition.settings);
+		// 合并设置和闪卡数据
+		const dataToSave = {
+			...window.NoteDefinition.settings,
+			...this.flashcardManager.getData()
+		};
+		await this.saveData(dataToSave);
 		this.fileExplorerDeco.run();
 		this.refreshDefinitions();
+	}
+
+	async saveFlashcardData() {
+		// 仅保存闪卡数据，不触发其他更新
+		const currentData = await this.loadData() || {};
+		const dataToSave = {
+			...currentData,
+			...this.flashcardManager.getData()
+		};
+		await this.saveData(dataToSave);
 	}
 
 	registerCommands() {
@@ -138,7 +182,15 @@ export default class NoteDefinition extends Plugin {
 				}
 				registerDefFile(this.app, activeFile, DefFileType.Atomic);
 			}
-		})
+		});
+
+		this.addCommand({
+			id: "open-definition-manager",
+			name: "Open Definition Manager",
+			callback: () => {
+				this.activateDefinitionManagerView();
+			}
+		});
 	}
 
 	registerEvents() {
@@ -238,6 +290,19 @@ export default class NoteDefinition extends Plugin {
 					editModal.open(def);
 				});
 		});
+
+		menu.addItem(item => {
+			item.setTitle("Delete definition")
+				.setIcon("trash")
+				.onClick(async () => {
+					// 显示确认对话框
+					const confirmed = await this.showDeleteConfirmation(def);
+					if (confirmed) {
+						const updater = new DefFileUpdater(this.app);
+						await updater.deleteDefinition(def);
+					}
+				});
+		});
 	}
 
 	refreshDefinitions() {
@@ -264,8 +329,72 @@ export default class NoteDefinition extends Plugin {
 		this.app.workspace.updateOptions();
 	}
 
+	async activateDefinitionManagerView() {
+		const { workspace } = this.app;
+
+		let leaf = workspace.getLeavesOfType(DEFINITION_MANAGER_VIEW_TYPE)[0];
+
+		if (!leaf) {
+			// 如果视图不存在，在主工作区创建一个新的叶子
+			leaf = workspace.getLeaf(false);
+			await leaf.setViewState({
+				type: DEFINITION_MANAGER_VIEW_TYPE,
+				active: true,
+			});
+		}
+
+		// 激活视图
+		workspace.revealLeaf(leaf);
+	}
+
 	onunload() {
 		logDebug("Unload note definition plugin");
 		getDefinitionPopover().cleanUp();
+	}
+
+	private async showDeleteConfirmation(def: Definition): Promise<boolean> {
+		return new Promise((resolve) => {
+			const modal = new Modal(this.app);
+			modal.setTitle("Confirm the deletion definition");
+			
+			const content = modal.contentEl;
+			
+			if (def.fileType === DefFileType.Atomic) {
+				content.createEl("p", { 
+					text: "This will delete the entire file.",
+					cls: "mod-warning"
+				});
+			} else {
+				content.createEl("p", { 
+					text: "This will remove this definition from the consolidated file."
+				});
+			}
+			
+			const buttonContainer = content.createDiv({
+				cls: "modal-button-container"
+			});
+			buttonContainer.style.display = "flex";
+			buttonContainer.style.justifyContent = "flex-end";
+			buttonContainer.style.gap = "10px";
+			buttonContainer.style.marginTop = "20px";
+			
+			const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
+			const deleteButton = buttonContainer.createEl("button", { 
+				text: "Delete",
+				cls: "mod-warning"
+			});
+			
+			cancelButton.addEventListener("click", () => {
+				modal.close();
+				resolve(false);
+			});
+			
+			deleteButton.addEventListener("click", () => {
+				modal.close();
+				resolve(true);
+			});
+			
+			modal.open();
+		});
 	}
 }

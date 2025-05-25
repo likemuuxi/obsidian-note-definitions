@@ -27,6 +27,18 @@ export class DefFileUpdater {
 		new Notice("Definition successfully modified");
 	}
 
+	async deleteDefinition(def: Definition) {
+		if (def.fileType === DefFileType.Atomic) {
+			await this.deleteAtomicDefFile(def);
+		} else if (def.fileType === DefFileType.Consolidated) {
+			await this.deleteConsolidatedDefFile(def);
+		} else {
+			return;
+		}
+		await getDefFileManager().loadUpdatedFiles();
+		new Notice("Definition successfully deleted");
+	}
+
 	private async updateAtomicDefFile(def: Definition) {
 		await this.app.vault.modify(def.file, def.definition);
 	}
@@ -45,7 +57,24 @@ export class DefFileUpdater {
 			return;
 		}
 		if (fileDef.position) {
-			const newLines = this.replaceDefinition(fileDef.position, def, lines);
+			// 计算frontmatter偏移
+			const fileMetadata = this.app.metadataCache.getFileCache(file);
+			const fmPos = fileMetadata?.frontmatterPosition;
+			let frontmatterOffset = 0;
+			
+			if (fmPos) {
+				// 计算frontmatter结束后的行数偏移
+				const frontmatterContent = fileContent.slice(0, fmPos.end.offset + 1);
+				frontmatterOffset = frontmatterContent.split(/\r?\n/).length - 1;
+			}
+			
+			// 调整位置以包含frontmatter偏移
+			const adjustedPosition = {
+				from: fileDef.position.from + frontmatterOffset,
+				to: fileDef.position.to + frontmatterOffset
+			};
+			
+			const newLines = this.replaceDefinition(adjustedPosition, def, lines);
 			const newContent = newLines.join("\n");
 
 			await this.app.vault.modify(file, newContent);
@@ -155,5 +184,71 @@ export class DefFileUpdater {
 		const trimmedDef = def.definition ? def.definition.replace(/\s+$/g, '') : '';
 		lines.push('', trimmedDef, '');
 		return lines;
+	}
+
+	private async deleteAtomicDefFile(def: Definition) {
+		await this.app.vault.delete(def.file);
+		getDefFileManager().removeDefFile(def.file);
+	}
+
+	private async deleteConsolidatedDefFile(def: Definition) {
+		const file = def.file;
+		const fileContent = await this.app.vault.read(file);
+
+		const fileParser = new FileParser(this.app, file);
+		const defs = await fileParser.parseFile(fileContent);
+		const lines = fileContent.split(/\r?\n/);
+
+		const fileDef = defs.find(fileDef => fileDef.key === def.key);
+		if (!fileDef) {
+			logError("File definition not found, cannot delete");
+			return;
+		}
+		
+		if (fileDef.position) {
+			// 计算frontmatter偏移
+			const fileMetadata = this.app.metadataCache.getFileCache(file);
+			const fmPos = fileMetadata?.frontmatterPosition;
+			let frontmatterOffset = 0;
+			
+			if (fmPos) {
+				// 计算frontmatter结束后的行数偏移
+				const frontmatterContent = fileContent.slice(0, fmPos.end.offset + 1);
+				frontmatterOffset = frontmatterContent.split(/\r?\n/).length - 1;
+			}
+			
+			// 调整位置以包含frontmatter偏移
+			const adjustedPosition = {
+				from: fileDef.position.from + frontmatterOffset,
+				to: fileDef.position.to + frontmatterOffset
+			};
+			
+			const newLines = this.removeDefinition(adjustedPosition, lines);
+			const newContent = newLines.join("\n");
+			await this.app.vault.modify(file, newContent);
+		}
+	}
+
+	private removeDefinition(position: FilePosition, lines: string[]): string[] {
+		const before = lines.slice(0, position.from);
+		const after = lines.slice(position.to + 1);
+		
+		const settings = getSettings();
+		if (after.length > 0) {
+			const nextLine = after[0];
+			const isNextLineSeparator = 
+				(settings.defFileParseConfig.divider.dash && nextLine.startsWith("---")) ||
+				(settings.defFileParseConfig.divider.underscore && nextLine.startsWith("___"));
+			
+			if (isNextLineSeparator) {
+				let skipLines = 1;
+				while (skipLines < after.length && after[skipLines].trim() === "") {
+					skipLines++;
+				}
+				return before.concat(after.slice(skipLines));
+			}
+		}
+		
+		return before.concat(after);
 	}
 }

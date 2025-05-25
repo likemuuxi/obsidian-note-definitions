@@ -22,6 +22,11 @@ export class FileParser {
 	async parseFile(fileContent?: string): Promise<Definition[]> {
 		this.defFileType = this.getDefFileType();
 
+		// 如果文件没有明确的def-type属性，跳过处理
+		if (!this.defFileType) {
+			return [];
+		}
+
 		switch (this.defFileType) {
 			case DefFileType.Consolidated:
 				const defParser = new ConsolidatedDefParser(this.app, this.file);
@@ -29,10 +34,12 @@ export class FileParser {
 			case DefFileType.Atomic:
 				const atomicParser = new AtomicDefParser(this.app, this.file);
 				return atomicParser.parseFile(fileContent);
+			default:
+				return [];
 		}
 	}
 
-	private getDefFileType(): DefFileType {
+	private getDefFileType(): DefFileType | undefined {
 		const fileCache = this.app.metadataCache.getFileCache(this.file);
 		const fmFileType = fileCache?.frontmatter?.[DEF_TYPE_FM];
 		if (fmFileType && 
@@ -40,12 +47,7 @@ export class FileParser {
 			return fmFileType;
 		}
 		
-		// Fallback to configured default
-		const parserSettings = getSettings().defFileParseConfig;
-
-		if (parserSettings.defaultFileType) {
-			return parserSettings.defaultFileType;
-		}
-		return DefFileType.Consolidated;
+		// 不再有回退机制，只处理明确标记了def-type的文件
+		return undefined;
 	}
 }

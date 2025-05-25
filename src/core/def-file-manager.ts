@@ -52,6 +52,12 @@ export class DefManager {
 		this.globalDefFiles.set(file.path, file);
 	}
 
+	removeDefFile(file: TFile) {
+		this.globalDefFiles.delete(file.path);
+		this.consolidatedDefFiles.delete(file.path);
+		this.globalDefs.clearForFile(file.path);
+	}
+
 	// Get the appropriate prefix tree to use for current active file
 	getPrefixTree() {
 		if (this.shouldUseLocal) {
@@ -310,6 +316,39 @@ export class DefManager {
 	getGlobalDefFolder() {
 		return window.NoteDefinition.settings.defFolder || DEFAULT_DEF_FOLDER;
 	}
+
+	// 获取文件中的所有定义
+	getDefinitionsFromFile(file: TFile): Definition[] {
+		const defMap = this.globalDefs.getMapForFile(file.path);
+		if (!defMap) {
+			return [];
+		}
+		
+		// 去重，因为别名也会创建重复的定义条目
+		const uniqueDefs = new Map<string, Definition>();
+		for (const def of defMap.values()) {
+			uniqueDefs.set(def.key, def);
+		}
+		
+		return Array.from(uniqueDefs.values());
+	}
+
+	// 获取文件的类型
+	getFileType(file: TFile): DefFileType {
+		const fileCache = this.app.metadataCache.getFileCache(file);
+		const fmFileType = fileCache?.frontmatter?.["def-type"];
+		
+		if (fmFileType === DefFileType.Consolidated || fmFileType === "consolidated") {
+			return DefFileType.Consolidated;
+		} else if (fmFileType === DefFileType.Atomic || fmFileType === "atomic") {
+			return DefFileType.Atomic;
+		}
+		
+		// 使用默认配置
+		const settings = window.NoteDefinition.settings;
+		const defaultType = settings?.defFileParseConfig?.defaultFileType || DefFileType.Consolidated;
+		return defaultType;
+	}
 }
 
 export class DefinitionRepo {
@@ -355,7 +394,7 @@ export class DefinitionRepo {
 
 		if (def.aliases.length > 0) {
 			def.aliases.forEach(alias => {
-				if (defMap) {
+				if (defMap && typeof alias === 'string' && alias.trim()) {
 					defMap.set(alias.toLowerCase(), def);
 				}
 			});

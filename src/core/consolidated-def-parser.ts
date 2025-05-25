@@ -119,19 +119,21 @@ export class ConsolidatedDefParser extends BaseDefParser {
 		// Register aliases
 		if (this.defBuffer.aliases && this.defBuffer.aliases.length > 0) {
 			this.defBuffer.aliases.forEach(alias => {
-				this.definitions.push({
-					key: alias.toLowerCase(),
-					word: this.defBuffer.word ?? "",
-					aliases: this.defBuffer.aliases ?? [],
-					definition: definition,
-					file: this.file,
-					linkText: `${this.file.path}${this.defBuffer.word ? '#'+this.defBuffer.word : ''}`,
-					fileType: DefFileType.Consolidated,
-					position: {
-						from: this.defBuffer.filePosition?.from ?? 0, 
-						to: this.currLine-1,
-					}
-				});
+				if (typeof alias === 'string' && alias.trim()) {
+					this.definitions.push({
+						key: alias.toLowerCase(),
+						word: this.defBuffer.word ?? "",
+						aliases: this.defBuffer.aliases ?? [],
+						definition: definition,
+						file: this.file,
+						linkText: `${this.file.path}${this.defBuffer.word ? '#'+this.defBuffer.word : ''}`,
+						fileType: DefFileType.Consolidated,
+						position: {
+							from: this.defBuffer.filePosition?.from ?? 0, 
+							to: this.currLine-1,
+						}
+					});
+				}
 			});
 		}
 		this.defBuffer = {};

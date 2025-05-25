@@ -1,4 +1,4 @@
-import { DefFileParseConfig, getSettings } from "src/settings";
+import { DefFileParseConfig, getSettings } from "../settings";
 
 var pluralize = require('pluralize');
 
