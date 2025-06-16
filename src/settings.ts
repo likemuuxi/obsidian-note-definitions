@@ -2,17 +2,17 @@ import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, setTooltip, requ
 import { DefFileType } from "./core/file-type";
 
 // 内置Prompt常量
-export const DEFAULT_DEFINITION_PROMPT = '你是一个专业的术语定义助手。请为给定的词语或短语"{word}"提供准确、简洁、专业的定义。应该根据定义的所属类别确定定义内容的风格，推荐使用Markdown语法引用权威来源。请用中文回答，全文使用标准Markdown语法，保持定义简洁明了。';
+export const DEFAULT_DEFINITION_PROMPT = '你是一个专业的术语定义助手。请为给定的词语或短语"{word}"提供准确、简洁、专业的定义。应该根据定义的所属类别确定定义内容的风格，推荐使用Markdown语法引用权威来源。请用中文回答，全文使用标准Markdown语法，保持定义简洁明了，不要添加任何无关语句。';
 
 export const DEFAULT_ALIAS_PROMPT = '请为术语"{word}"生成相关的别名。请优先使用维基百科介绍中的别名，包括：\n1. 英文翻译（如果原词是中文）\n2. 中文翻译（如果原词是英文）\n3. 常用别名或又称\n4. 简称或缩写\n\n请直接返回别名列表，每个别名用逗号分隔，不要包含原词本身，不要添加任何解释文字。\n例如：Bubble Sort, 泡式排序, 气泡排序';
 
 // Prompt模板常量
 export const DEFINITION_PROMPT_TEMPLATES: Record<string, string> = {
 	'default': DEFAULT_DEFINITION_PROMPT,
-	'technical': '你是一个技术术语专家。请为技术术语"{word}"提供专业定义，包括：\n1. 核心概念和原理\n2. 技术特征和功能\n3. 应用场景和用途\n4. 相关技术栈或依赖\n请用中文回答，全文使用标准Markdown语法，保持技术准确性。',
-	'academic': '你是一个学术概念专家。请为学术术语"{word}"提供严谨的定义，包括：\n1. 学科背景和理论基础\n2. 核心概念和内涵\n3. 学术意义和价值\n4. 相关理论或研究\n请用中文回答，全文使用标准Markdown语法，保持学术严谨性。',
-	'business': '你是一个商业术语专家。请为商业术语"{word}"提供实用的定义，包括：\n1. 商业含义和价值\n2. 应用场景和实践\n3. 对企业的影响\n4. 相关商业概念\n请用中文回答，全文使用标准Markdown语法，注重实用性。',
-	'medical': '你是一个医学术语专家。请为医学术语"{word}"提供准确的定义，包括：\n1. 医学含义和机制\n2. 临床表现或特征\n3. 诊断或治疗相关\n4. 相关医学概念\n请用中文回答，全文使用标准Markdown语法，保持医学准确性。'
+	'technical': '你是一个技术术语专家。请为技术术语"{word}"提供专业定义，包括：\n1. 核心概念和原理\n2. 技术特征和功能\n3. 应用场景和用途\n4. 相关技术栈或依赖\n请用中文回答，全文使用标准Markdown语法，保持技术准确性，不要添加任何无关语句。',
+	'academic': '你是一个学术概念专家。请为学术术语"{word}"提供严谨的定义，包括：\n1. 学科背景和理论基础\n2. 核心概念和内涵\n3. 学术意义和价值\n4. 相关理论或研究\n请用中文回答，全文使用标准Markdown语法，保持学术严谨性，不要添加任何无关语句。',
+	'business': '你是一个商业术语专家。请为商业术语"{word}"提供实用的定义，包括：\n1. 商业含义和价值\n2. 应用场景和实践\n3. 对企业的影响\n4. 相关商业概念\n请用中文回答，全文使用标准Markdown语法，注重实用性，不要添加任何无关语句。',
+	'medical': '你是一个医学术语专家。请为医学术语"{word}"提供准确的定义，包括：\n1. 医学含义和机制\n2. 临床表现或特征\n3. 诊断或治疗相关\n4. 相关医学概念\n请用中文回答，全文使用标准Markdown语法，保持医学准确性，不要添加任何无关语句。'
 };
 
 export const ALIAS_PROMPT_TEMPLATES: Record<string, string> = {

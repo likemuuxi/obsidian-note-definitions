@@ -225,8 +225,8 @@ export class AddDefinitionModal {
 		new Setting(this.modal.contentEl)
 			.setName("Definition file type")
 			.addDropdown(component => {
-				component.addOption(DefFileType.Consolidated, "Consolidated");
 				component.addOption(DefFileType.Atomic, "Atomic");
+				component.addOption(DefFileType.Consolidated, "Consolidated");
 				// 设置默认值为配置文件中的defaultFileType
 				const settings = window.NoteDefinition.settings;
 				component.setValue(settings.defFileParseConfig.defaultFileType);

@@ -2197,12 +2197,12 @@ export class DefinitionManagerView extends ItemView {
 		const stats = await this.flashcardManager!.getStats();
 		
 		// 页面标题和学习建议合并
-		const titleSection = statsContainer.createDiv({ cls: "statistics-title-section" });
-		const suggestion = await this.generateStudySuggestion(stats);
-		titleSection.innerHTML = `
-			<h1 class="statistics-title">📊 Learning Statistics Dashboard</h1>
-			<p class="statistics-subtitle">${suggestion}</p>
-		`;
+		// const titleSection = statsContainer.createDiv({ cls: "statistics-title-section" });
+		// const suggestion = await this.generateStudySuggestion(stats);
+		// titleSection.innerHTML = `
+		// 	<h1 class="statistics-title">📊 Learning Statistics Dashboard</h1>
+		// 	<p class="statistics-subtitle">${suggestion}</p>
+		// `;
 
 		// 卡片状态分布
 		const cardsSection = statsContainer.createDiv({ cls: "dashboard-section" });
@@ -2228,17 +2228,6 @@ export class DefinitionManagerView extends ItemView {
 			</div>
 		`;
 
-		// 创建图表双列布局区域
-		const chartsSection = statsContainer.createDiv({ cls: "dashboard-section" });
-		chartsSection.innerHTML = `<h3>📊 Data Visualization</h3>`;
-		const chartsRow = chartsSection.createDiv({ cls: "charts-row" });
-		
-		// 卡片状态分布柱状图
-		const cardChartContainer = chartsRow.createDiv({ cls: "chart-container" });
-		cardChartContainer.innerHTML = `<h4 style="margin: 0 0 15px 0; font-size: 16px; color: var(--text-normal);">Card Status Distribution</h4>`;
-		const cardCanvas = cardChartContainer.createEl("canvas", { cls: "statistics-chart" });
-		await this.createCardDistributionChart(cardCanvas, stats);
-
 		// 今日学习概览
 		const todaySection = statsContainer.createDiv({ cls: "dashboard-section" });
 		todaySection.innerHTML = `
@@ -2258,6 +2247,17 @@ export class DefinitionManagerView extends ItemView {
 				</div>
 			</div>
 		`;
+
+		// 创建图表双列布局区域
+		const chartsSection = statsContainer.createDiv({ cls: "dashboard-section" });
+		chartsSection.innerHTML = `<h3>📊 Data Visualization</h3>`;
+		const chartsRow = chartsSection.createDiv({ cls: "charts-row" });
+		
+		// 卡片状态分布柱状图
+		const cardChartContainer = chartsRow.createDiv({ cls: "chart-container" });
+		cardChartContainer.innerHTML = `<h4 style="margin: 0 0 15px 0; font-size: 16px; color: var(--text-normal);">Card Status Distribution</h4>`;
+		const cardCanvas = cardChartContainer.createEl("canvas", { cls: "statistics-chart" });
+		await this.createCardDistributionChart(cardCanvas, stats);
 
 		// 最近7天学习历史柱状图（放在同一行的右侧）
 		const historyChartContainer = chartsRow.createDiv({ cls: "chart-container" });
@@ -2305,11 +2305,11 @@ export class DefinitionManagerView extends ItemView {
 					<div class="stat-number">${stats.longestStreak || 0}</div>
 					<div class="stat-label">Longest Streak</div>
 				</div>
-				<div class="dashboard-stat-card">
+				<div class="dashboard-stat-card streak">
 					<div class="stat-number">${stats.weeklyAverage || 0}</div>
 					<div class="stat-label">Weekly Average</div>
 				</div>
-				<div class="dashboard-stat-card">
+				<div class="dashboard-stat-card streak">
 					<div class="stat-number">${Math.round((stats.averageAccuracy || 0) * 100)}%</div>
 					<div class="stat-label">Accuracy</div>
 				</div>
