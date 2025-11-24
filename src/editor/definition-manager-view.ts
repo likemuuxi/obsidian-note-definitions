@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, Setting, TFile, MarkdownRenderer, Component, Modal } from "obsidian";
+import { ItemView, WorkspaceLeaf, Notice, Setting, TFile, MarkdownRenderer, Component, Modal, setIcon } from "obsidian";
 import { getDefFileManager } from "src/core/def-file-manager";
 import { DefFileUpdater } from "src/core/def-file-updater";
 import { DefFileType } from "src/core/file-type";
@@ -33,18 +33,18 @@ export class DefinitionManagerView extends ItemView {
     private resizeObserver?: ResizeObserver;
 
     // 设置相关
-	private enableTruncation: boolean = false;
-	private currentViewMode: ViewMode = ViewMode.Manager;
-	private flashcardManager?: FlashcardManager;
+	protected enableTruncation: boolean = true;
+	protected currentViewMode: ViewMode = ViewMode.Manager;
+	protected flashcardManager?: FlashcardManager;
 	
 	// 浏览模式相关
-	private browseMode: 'flashcard' | 'browse' = 'flashcard';
-	private selectedConsolidatedFiles: TFile[] = [];
-	private currentBrowseIndex: number = 0;
-	private browseDefinitions: Array<{file: TFile, definitions: any[]}> = [];
-	private flatBrowseList: Array<{file: TFile, definition: any}> = [];
-	private updateSelectedFiles?: () => void;
-	private isViewActive: boolean = false;
+	protected browseMode: 'flashcard' | 'browse' = 'flashcard';
+	protected selectedConsolidatedFiles: TFile[] = [];
+	protected currentBrowseIndex: number = 0;
+	protected browseDefinitions: Array<{file: TFile, definitions: any[]}> = [];
+	protected flatBrowseList: Array<{file: TFile, definition: any}> = [];
+	protected isViewActive: boolean = false;
+	protected managerOnly: boolean = false;
 
     constructor(leaf: WorkspaceLeaf) {
         super(leaf);
@@ -59,8 +59,31 @@ export class DefinitionManagerView extends ItemView {
     }
 
     getIcon() {
-        return "book-open";
+        return "swatch-book";
     }
+
+	private setIconWithLabel(target: HTMLElement, icon: string, label?: string) {
+		target.empty();
+		target.addClass("with-icon");
+
+		const iconSpan = target.createSpan({ cls: "with-icon-icon" });
+		setIcon(iconSpan, icon);
+
+		if (label) {
+			target.createSpan({ text: label, cls: "with-icon-label" });
+			if (!target.getAttribute("aria-label")) {
+				target.setAttribute("aria-label", label);
+			}
+		}
+
+		return target;
+	}
+
+	private createIconHeading(parent: Element, tag: keyof HTMLElementTagNameMap, icon: string, text: string) {
+		const heading = parent.createEl(tag, { cls: "with-icon" });
+		this.setIconWithLabel(heading as HTMLElement, icon, text);
+		return heading;
+	}
 
     async onOpen() {
         this.isViewActive = true;
@@ -198,24 +221,25 @@ export class DefinitionManagerView extends ItemView {
         });
     }
 
-    	private render() {
+    	protected render() {
 		const container = this.containerEl.children[1];
 		container.empty();
 		container.addClass("def-manager-view-container");
 		
-		// 默认使用Manager模式
-		if (this.currentViewMode === ViewMode.Manager) {
+		if (this.managerOnly) {
 			this.currentViewMode = ViewMode.Manager;
+			this.browseMode = 'flashcard';
 		}
 		
 		// 创建模式切换按钮
-		this.createModeButtons(container);
+		if (!this.managerOnly) {
+			this.createModeButtons(container);
+		}
 		
 		// 根据当前模式渲染内容
 		if (this.currentViewMode === ViewMode.Manager) {
 			// Definition Manager模式
 			this.createManagerToolbar(container);
-			this.createStats(container);
 			this.createDefinitionList(container);
 		} else if (this.currentViewMode === ViewMode.Statistics) {
 			// Statistics Dashboard模式
@@ -227,14 +251,14 @@ export class DefinitionManagerView extends ItemView {
 	}
 
 	// 创建模式切换按钮
-	private createModeButtons(container: Element) {
+	protected createModeButtons(container: Element) {
 		const modeContainer = container.createDiv({ cls: "mode-buttons-container" });
 		
 		// Definition Manager按钮 - 放到首位
 		const managerBtn = modeContainer.createEl("button", {
-			cls: `mode-btn ${this.currentViewMode === ViewMode.Manager ? 'active' : ''}`,
-			text: "📋 Definition Manager"
+			cls: `mode-btn ${this.currentViewMode === ViewMode.Manager ? 'active' : ''}`
 		});
+		this.setIconWithLabel(managerBtn, "clipboard-list", "Definition Manager");
 		managerBtn.addEventListener('click', async () => {
 			this.currentViewMode = ViewMode.Manager;
 			await this.loadDefinitions(); // 重新加载定义数据
@@ -243,9 +267,9 @@ export class DefinitionManagerView extends ItemView {
 
 		// Flashcard Study按钮
 		const flashcardBtn = modeContainer.createEl("button", {
-			cls: `mode-btn ${this.currentViewMode === ViewMode.Flashcard && this.browseMode === 'flashcard' ? 'active' : ''}`,
-			text: "📚 Flashcard Study"
+			cls: `mode-btn ${this.currentViewMode === ViewMode.Flashcard && this.browseMode === 'flashcard' ? 'active' : ''}`
 		});
+		this.setIconWithLabel(flashcardBtn, "graduation-cap", "Flashcard Study");
 		flashcardBtn.addEventListener('click', () => {
 			this.currentViewMode = ViewMode.Flashcard;
 			this.browseMode = 'flashcard';
@@ -254,9 +278,9 @@ export class DefinitionManagerView extends ItemView {
 
 		// Browse Mode按钮
 		const browseBtn = modeContainer.createEl("button", {
-			cls: `mode-btn ${this.currentViewMode === ViewMode.Flashcard && this.browseMode === 'browse' ? 'active' : ''}`,
-			text: "📖 Browse Mode"
+			cls: `mode-btn ${this.currentViewMode === ViewMode.Flashcard && this.browseMode === 'browse' ? 'active' : ''}`
 		});
+		this.setIconWithLabel(browseBtn, "book-open", "Browse Mode");
 		browseBtn.addEventListener('click', () => {
 			this.currentViewMode = ViewMode.Flashcard;
 			this.browseMode = 'browse';
@@ -265,7 +289,7 @@ export class DefinitionManagerView extends ItemView {
 	}
 
 	// 创建管理器工具栏（简化版，只包含管理器功能）
-	private createManagerToolbar(container: Element) {
+	protected createManagerToolbar(container: Element) {
 		const toolbar = container.createDiv({ cls: "def-manager-toolbar" });
 
 		// 搜索框
@@ -361,18 +385,18 @@ export class DefinitionManagerView extends ItemView {
 
 		// 导出按钮
 		const exportBtn = buttonGroup.createEl("button", {
-			cls: "def-toolbar-btn",
-			text: "📤 Export"
+			cls: "def-toolbar-btn"
 		});
+		this.setIconWithLabel(exportBtn, "upload", "Export");
 		exportBtn.addEventListener('click', async () => {
 			await this.exportDefinitions();
 		});
 
 		// 批量删除按钮
 		const batchDeleteBtn = buttonGroup.createEl("button", {
-			cls: "def-toolbar-btn def-toolbar-btn-danger",
-			text: "🗑️ Batch Delete"
+			cls: "def-toolbar-btn def-toolbar-btn-danger"
 		});
+		this.setIconWithLabel(batchDeleteBtn, "trash-2", "Batch Delete");
 		batchDeleteBtn.addEventListener('click', async () => {
 			await this.showBatchDeleteModal();
 		});
@@ -440,24 +464,7 @@ export class DefinitionManagerView extends ItemView {
         fileSelect.value = this.selectedSourceFile;
     }
 
-    private createStats(container: Element) {
-        const stats = container.createDiv({ cls: "def-manager-stats" });
-        this.updateStats(stats);
-    }
-
-    private updateStats(statsEl?: Element) {
-        const stats = statsEl || this.containerEl.querySelector('.def-manager-stats');
-        if (!stats) return;
-
-        const total = this.definitions.length;
-        const filtered = this.filteredDefinitions.length;
-        const consolidated = this.filteredDefinitions.filter(d => d.fileType === DefFileType.Consolidated).length;
-        const atomic = this.filteredDefinitions.filter(d => d.fileType === DefFileType.Atomic).length;
-
-        stats.textContent = `Showing ${filtered} of ${total} definitions (${consolidated} consolidated, ${atomic} atomic)`;
-    }
-
-    private createDefinitionList(container: Element) {
+    protected createDefinitionList(container: Element) {
         const listContainer = container.createDiv({ cls: "def-manager-list" });
         this.updateDefinitionList(listContainer);
     }
@@ -470,11 +477,10 @@ export class DefinitionManagerView extends ItemView {
 
 		if (this.filteredDefinitions.length === 0) {
 			const empty = list.createDiv({ cls: "def-manager-empty" });
-			empty.innerHTML = `
-				<div style="font-size: 48px; margin-bottom: 16px;">📝</div>
-				<div style="font-size: 16px; margin-bottom: 8px;">No definitions found</div>
-				<div style="font-size: 14px;">Try adjusting your search or filters</div>
-			`;
+			const emptyIcon = empty.createDiv({ cls: "def-empty-icon" });
+			setIcon(emptyIcon, "file-question");
+			empty.createDiv({ text: "No definitions found", cls: "def-empty-title" });
+			empty.createDiv({ text: "Try adjusting your search or filters", cls: "def-empty-subtitle" });
 			return;
 		}
 
@@ -492,8 +498,6 @@ export class DefinitionManagerView extends ItemView {
 				this.layoutMasonry(list as HTMLElement, cards);
 			});
 		}
-
-		this.updateStats();
 	}
 
     // 等待所有卡片渲染完成
@@ -706,36 +710,39 @@ export class DefinitionManagerView extends ItemView {
         const header = card.createDiv({ cls: "def-card-header" });
         const wordEl = header.createEl("h3", { cls: "def-card-word", text: def.word });
 
-        // 操作按钮
-        const actions = header.createDiv({ cls: "def-card-actions" });
+		// 操作按钮
+		const actions = header.createDiv({ cls: "def-card-actions" });
 
-        const editBtn = actions.createEl("button", {
-            cls: "def-card-action-btn",
-            text: "✏️"
-        });
-        editBtn.title = "Edit";
-        editBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            console.log('Edit button clicked for:', def.word);
-            this.editDefinition(def);
-        });
+		const editBtn = actions.createEl("button", {
+			cls: "def-card-action-btn"
+		});
+		this.setIconWithLabel(editBtn, "pencil");
+		editBtn.setAttribute("aria-label", "Edit");
+		editBtn.title = "Edit";
+		editBtn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			console.log('Edit button clicked for:', def.word);
+			this.editDefinition(def);
+		});
 
-        const viewBtn = actions.createEl("button", {
-            cls: "def-card-action-btn",
-            text: "👁️"
-        });
-        viewBtn.title = "View File";
-        viewBtn.addEventListener('click', () => this.openSourceFile(def));
+		const viewBtn = actions.createEl("button", {
+			cls: "def-card-action-btn"
+		});
+		this.setIconWithLabel(viewBtn, "eye");
+		viewBtn.setAttribute("aria-label", "View File");
+		viewBtn.title = "View File";
+		viewBtn.addEventListener('click', () => this.openSourceFile(def));
 
-        const deleteBtn = actions.createEl("button", {
-            cls: "def-card-action-btn",
-            text: "🗑️"
-        });
-        deleteBtn.title = "Delete";
-        deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            console.log('Delete button clicked for:', def.word);
-            this.deleteDefinition(def);
+		const deleteBtn = actions.createEl("button", {
+			cls: "def-card-action-btn"
+		});
+		this.setIconWithLabel(deleteBtn, "trash-2");
+		deleteBtn.setAttribute("aria-label", "Delete");
+		deleteBtn.title = "Delete";
+		deleteBtn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			console.log('Delete button clicked for:', def.word);
+			this.deleteDefinition(def);
         });
 
         // 别名标签 - 放在原来元数据的位置
@@ -1066,15 +1073,15 @@ export class DefinitionManagerView extends ItemView {
         const content = batchModal.contentEl;
 
         // 警告信息
-        const warning = content.createDiv({ cls: "mod-warning" });
-        warning.style.padding = "15px";
-        warning.style.marginBottom = "20px";
-        warning.style.borderRadius = "5px";
-        warning.innerHTML = `
-			<strong>⚠️ Warning:</strong> This action will permanently delete the selected definitions.
-			<br>For atomic definitions, the entire file will be deleted.
-			<br>This action cannot be undone.
-		`;
+		const warning = content.createDiv({ cls: "mod-warning" });
+		warning.style.padding = "15px";
+		warning.style.marginBottom = "20px";
+		warning.style.borderRadius = "5px";
+		const warningTitle = warning.createDiv({ cls: "with-icon warning-title" });
+		this.setIconWithLabel(warningTitle, "alert-triangle", "Warning:");
+		warning.createDiv({ text: "This action will permanently delete the selected definitions." });
+		warning.createDiv({ text: "For atomic definitions, the entire file will be deleted." });
+		warning.createDiv({ text: "This action cannot be undone." });
 
         // 删除选项
         let deleteOption = 'filtered';
@@ -1388,9 +1395,9 @@ export class DefinitionManagerView extends ItemView {
 		});
 
 		const randomBtn = navigationContainer.createEl("button", {
-			cls: "flashcard-btn flashcard-btn-primary",
-			text: "🎲 Random"
+			cls: "flashcard-btn flashcard-btn-primary"
 		});
+		this.setIconWithLabel(randomBtn, "dice-5", "Random");
 		randomBtn.addEventListener('click', () => {
 			this.currentBrowseIndex = Math.floor(Math.random() * this.flatBrowseList.length);
 			this.updateBrowseContent();
@@ -1567,9 +1574,9 @@ export class DefinitionManagerView extends ItemView {
 
 		// 在统计信息最左侧添加Statistics按钮
 		const statisticsBtn = statsContainer.createEl("button", {
-			cls: "flashcard-settings-btn-inline",
-			text: "📊 Statistics"
+			cls: "flashcard-settings-btn-inline"
 		});
+		this.setIconWithLabel(statisticsBtn, "bar-chart-2", "Statistics");
 		statisticsBtn.addEventListener('click', () => {
 			this.currentViewMode = ViewMode.Statistics;
 			this.render();
@@ -1599,9 +1606,9 @@ export class DefinitionManagerView extends ItemView {
 
 		// 在统计信息右侧添加设置按钮
 		const settingsBtn = statsContainer.createEl("button", {
-			cls: "flashcard-settings-btn-inline",
-			text: "⚙️ Settings"
+			cls: "flashcard-settings-btn-inline"
 		});
+		this.setIconWithLabel(settingsBtn, "settings", "Settings");
 		settingsBtn.addEventListener('click', () => {
 			this.showFlashcardSettingsModal();
 		});
@@ -1614,13 +1621,13 @@ export class DefinitionManagerView extends ItemView {
 		const studyQueue = await this.flashcardManager.getTodayStudyQueue();
 		
 		if (studyQueue.length === 0) {
-			questionArea.innerHTML = `
-				<h2>🎉 All done for today!</h2>
-				<p>You've completed all your scheduled cards. Great job!</p>
-				<p>Come back tomorrow for more learning.</p>
-			`;
-			
-			controlsContainer.innerHTML = "";
+			questionArea.empty();
+			const finishedTitle = questionArea.createEl("h2");
+			this.setIconWithLabel(finishedTitle, "check-circle-2", "All done for today!");
+			questionArea.createEl("p", { text: "You've completed all your scheduled cards. Great job!" });
+			questionArea.createEl("p", { text: "Come back tomorrow for more learning." });
+
+			controlsContainer.empty();
 			
 			// 创建按钮容器
 			const buttonContainer = controlsContainer.createDiv();
@@ -1631,9 +1638,9 @@ export class DefinitionManagerView extends ItemView {
 
 			// Study Extra Cards按钮
 			const studyExtraBtn = buttonContainer.createEl("button", {
-				cls: "flashcard-btn flashcard-btn-primary",
-				text: "📚 Study Extra Cards"
+				cls: "flashcard-btn flashcard-btn-primary"
 			});
+			this.setIconWithLabel(studyExtraBtn, "plus-circle", "Study Extra Cards");
 			studyExtraBtn.addEventListener('click', async () => {
 				await this.startExtraStudySession();
 			});
@@ -1797,11 +1804,11 @@ export class DefinitionManagerView extends ItemView {
 
 	// 完成学习会话
 	private completeStudySession(questionArea: Element, answerArea: Element, controlsContainer: Element, statsContainer: Element) {
-		questionArea.innerHTML = `
-			<h2>🎉 Session Complete!</h2>
-			<p>You've finished studying ${this.currentStudyQueue.length} cards.</p>
-			<p>Great work! Keep up the consistent practice.</p>
-		`;
+		questionArea.empty();
+		const sessionTitle = questionArea.createEl("h2");
+		this.setIconWithLabel(sessionTitle, "check-circle-2", "Session Complete!");
+		questionArea.createEl("p", { text: `You've finished studying ${this.currentStudyQueue.length} cards.` });
+		questionArea.createEl("p", { text: "Great work! Keep up the consistent practice." });
 
 		(answerArea as HTMLElement).style.display = "none";
 
@@ -1816,9 +1823,9 @@ export class DefinitionManagerView extends ItemView {
 
 		// Study Extra Cards按钮
 		const studyExtraBtn = buttonContainer.createEl("button", {
-			cls: "flashcard-btn flashcard-btn-primary",
-			text: "📚 Study Extra Cards"
+			cls: "flashcard-btn flashcard-btn-primary"
 		});
+		this.setIconWithLabel(studyExtraBtn, "plus-circle", "Study Extra Cards");
 		studyExtraBtn.addEventListener('click', async () => {
 			await this.startExtraStudySession();
 		});
@@ -2103,11 +2110,8 @@ export class DefinitionManagerView extends ItemView {
 			checkbox.checked = currentScope.includes(item.path);
 			checkboxes.push({ element: checkbox, path: item.path });
 
-			const icon = itemDiv.createSpan({ 
-				text: item.type === 'folder' ? "📁" : "📄",
-				cls: "study-scope-icon"
-			});
-			icon.style.fontSize = "14px";
+			const icon = itemDiv.createSpan({ cls: "study-scope-icon" });
+			setIcon(icon, item.type === 'folder' ? "folder" : "file-text");
 
 			const label = itemDiv.createSpan({ 
 				text: item.name,
@@ -2199,16 +2203,15 @@ export class DefinitionManagerView extends ItemView {
 		// 页面标题和学习建议合并
 		// const titleSection = statsContainer.createDiv({ cls: "statistics-title-section" });
 		// const suggestion = await this.generateStudySuggestion(stats);
-		// titleSection.innerHTML = `
-		// 	<h1 class="statistics-title">📊 Learning Statistics Dashboard</h1>
-		// 	<p class="statistics-subtitle">${suggestion}</p>
-		// `;
+		// const titleHeading = this.createIconHeading(titleSection, "h1", "bar-chart-2", "Learning Statistics Dashboard");
+		// const suggestionText = titleSection.createEl("p", { cls: "statistics-subtitle" });
+		// suggestionText.textContent = suggestion;
 
 		// 卡片状态分布
 		const cardsSection = statsContainer.createDiv({ cls: "dashboard-section" });
-		cardsSection.innerHTML = `
-			<h3>📚 Card Distribution</h3>
-			<div class="dashboard-stats-grid">
+		this.createIconHeading(cardsSection, "h3", "book-open", "Card Distribution");
+		const cardsGrid = cardsSection.createDiv({ cls: "dashboard-stats-grid" });
+		cardsGrid.innerHTML = `
 				<div class="dashboard-stat-card new">
 					<div class="stat-number">${stats.newCards}</div>
 					<div class="stat-label">New</div>
@@ -2225,14 +2228,13 @@ export class DefinitionManagerView extends ItemView {
 					<div class="stat-number">${stats.graduatedCards}</div>
 					<div class="stat-label">Graduated</div>
 				</div>
-			</div>
-		`;
+			`;
 
 		// 今日学习概览
 		const todaySection = statsContainer.createDiv({ cls: "dashboard-section" });
-		todaySection.innerHTML = `
-			<h3>📅 Today's Progress</h3>
-			<div class="dashboard-stats-grid">
+		this.createIconHeading(todaySection, "h3", "calendar", "Today's Progress");
+		const todayGrid = todaySection.createDiv({ cls: "dashboard-stats-grid" });
+		todayGrid.innerHTML = `
 				<div class="dashboard-stat-card">
 					<div class="stat-number">${stats.todayNewCards}</div>
 					<div class="stat-label">New Cards</div>
@@ -2245,12 +2247,11 @@ export class DefinitionManagerView extends ItemView {
 					<div class="stat-number">${stats.todayNewCards + stats.todayReviewCards}</div>
 					<div class="stat-label">Total Studied</div>
 				</div>
-			</div>
-		`;
+			`;
 
 		// 创建图表双列布局区域
 		const chartsSection = statsContainer.createDiv({ cls: "dashboard-section" });
-		chartsSection.innerHTML = `<h3>📊 Data Visualization</h3>`;
+		this.createIconHeading(chartsSection, "h3", "bar-chart-3", "Data Visualization");
 		const chartsRow = chartsSection.createDiv({ cls: "charts-row" });
 		
 		// 卡片状态分布柱状图
@@ -2267,7 +2268,7 @@ export class DefinitionManagerView extends ItemView {
 		
 		// 最近7天学习历史详细数据
 		// const historySection = statsContainer.createDiv({ cls: "dashboard-section" });
-		// historySection.innerHTML = `<h3>📈 Recent 7 Days Details</h3>`;
+		// this.createIconHeading(historySection, "h3", "trending-up", "Recent 7 Days Details");
 		
 		// const recentSessions = stats.studySessions.slice(-7);
 		// const historyGrid = historySection.createDiv({ cls: "dashboard-history-grid" });
@@ -2294,9 +2295,9 @@ export class DefinitionManagerView extends ItemView {
 
 		// 学习成就和趋势
 		const achievementSection = statsContainer.createDiv({ cls: "dashboard-section" });
-		achievementSection.innerHTML = `
-			<h3>🏆 Learning Achievements</h3>
-			<div class="dashboard-stats-grid">
+		this.createIconHeading(achievementSection, "h3", "trophy", "Learning Achievements");
+		const achievementGrid = achievementSection.createDiv({ cls: "dashboard-stats-grid" });
+		achievementGrid.innerHTML = `
 				<div class="dashboard-stat-card streak">
 					<div class="stat-number">${stats.currentStreak || 0}</div>
 					<div class="stat-label">Current Streak</div>
@@ -2313,8 +2314,7 @@ export class DefinitionManagerView extends ItemView {
 					<div class="stat-number">${Math.round((stats.averageAccuracy || 0) * 100)}%</div>
 					<div class="stat-label">Accuracy</div>
 				</div>
-			</div>
-		`;
+			`;
 	}
 
 	// 创建卡片状态分布柱状图
@@ -2498,37 +2498,37 @@ export class DefinitionManagerView extends ItemView {
 		// 基于多个因素生成建议
 		if (totalStudied === 0) {
 			if (currentStreak > 0) {
-				return `🔥 Don't break your ${currentStreak}-day streak! Start with a few cards to keep the momentum going.`;
+				return `Don't break your ${currentStreak}-day streak! Start with a few cards to keep the momentum going.`;
 			} else {
-				return "🚀 Ready to start your learning journey? Begin with some new cards!";
+				return "Ready to start your learning journey? Begin with some new cards!";
 			}
 		}
 		
 		if (currentStreak >= 7) {
-			return `🏆 Amazing! You've maintained a ${currentStreak}-day learning streak. You're building an excellent habit!`;
+			return `Amazing! You've maintained a ${currentStreak}-day learning streak. You're building an excellent habit!`;
 		}
 		
 		if (accuracy < 0.6 && totalStudied > 5) {
-			return "📚 Consider reviewing some cards more carefully. Quality over quantity leads to better retention!";
+			return "Consider reviewing some cards more carefully. Quality over quantity leads to better retention!";
 		}
 		
 		if (totalStudied < weeklyAverage * 0.7) {
-			return `📈 You usually study ${weeklyAverage.toFixed(1)} cards daily. Try to reach your usual pace!`;
+			return `You usually study ${weeklyAverage.toFixed(1)} cards daily. Try to reach your usual pace!`;
 		}
 		
 		if (totalStudied >= 30) {
-			return "⭐ Excellent work! You're really committed to learning. Consider taking a short break if needed.";
+			return "Excellent work! You're really committed to learning. Consider taking a short break if needed.";
 		}
 		
 		if (totalStudied >= 20) {
-			return "🔥 Great progress! You're building a solid learning habit.";
+			return "Great progress! You're building a solid learning habit.";
 		}
 		
 		if (totalStudied >= 10) {
-			return "👍 Good momentum! Keep up the consistent practice.";
+			return "Good momentum! Keep up the consistent practice.";
 		}
 		
-		return "💪 You're making progress! Every card studied brings you closer to mastery.";
+		return "You're making progress! Every card studied brings you closer to mastery.";
 	}
 
 	// 尝试使用AI生成学习建议
@@ -2583,4 +2583,4 @@ Please provide a motivational and actionable suggestion that considers their cur
 			return null;
 		}
 	}
-} 
+}

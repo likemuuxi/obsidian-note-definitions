@@ -1,4 +1,4 @@
-import { Menu, Notice, Plugin, TFolder, WorkspaceWindow, TFile, MarkdownView } from 'obsidian';
+import { Menu, Notice, Plugin, TFolder, WorkspaceWindow, TFile, MarkdownView, WorkspaceLeaf } from 'obsidian';
 import { injectGlobals } from './globals';
 import { logDebug } from './util/log';
 import { definitionMarker } from './editor/decoration';
@@ -6,6 +6,7 @@ import { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { DefManager, initDefFileManager } from './core/def-file-manager';
 import { DefinitionManagerView, DEFINITION_MANAGER_VIEW_TYPE } from './editor/definition-manager-view';
+import { DefinitionSidebarView, DEFINITION_SIDEBAR_VIEW_TYPE } from './editor/definition-sidebar-view';
 import { Definition } from './core/model';
 import { getDefinitionPopover, initDefinitionPopover } from './editor/definition-popover';
 import { postProcessor } from './editor/md-postprocessor';
@@ -52,9 +53,13 @@ export default class NoteDefinition extends Plugin {
 			DEFINITION_MANAGER_VIEW_TYPE,
 			(leaf) => new DefinitionManagerView(leaf)
 		);
+		this.registerView(
+			DEFINITION_SIDEBAR_VIEW_TYPE,
+			(leaf) => new DefinitionSidebarView(leaf)
+		);
 
 		// 添加侧边栏图标
-		this.addRibbonIcon('book-open', 'Definition Manager', () => {
+		this.addRibbonIcon('swatch-book', 'Definition Manager', () => {
 			this.activateDefinitionManagerView();
 		});
 
@@ -77,6 +82,9 @@ export default class NoteDefinition extends Plugin {
 		}, 5 * 60 * 1000));
 
 		this.fileExplorerDeco.run();
+
+		// 在依赖初始化完成后再激活侧边栏，避免空内容
+		this.activateDefinitionSidebarView();
 	}
 
 	async saveSettings() {
@@ -189,6 +197,14 @@ export default class NoteDefinition extends Plugin {
 			name: "Open Definition Manager",
 			callback: () => {
 				this.activateDefinitionManagerView();
+			}
+		});
+
+		this.addCommand({
+			id: "open-definition-sidebar",
+			name: "Open Definition Sidebar",
+			callback: () => {
+				this.activateDefinitionSidebarView();
 			}
 		});
 	}
@@ -332,13 +348,35 @@ export default class NoteDefinition extends Plugin {
 	async activateDefinitionManagerView() {
 		const { workspace } = this.app;
 
-		let leaf = workspace.getLeavesOfType(DEFINITION_MANAGER_VIEW_TYPE)[0];
+		let leaf = workspace.getLeavesOfType(DEFINITION_MANAGER_VIEW_TYPE)[0] as WorkspaceLeaf | null;;
 
 		if (!leaf) {
-			// 如果视图不存在，在主工作区创建一个新的叶子
-			leaf = workspace.getLeaf(false);
+			leaf = workspace.getLeaf(true);
+			if (!leaf) {
+				return;
+			}
 			await leaf.setViewState({
 				type: DEFINITION_MANAGER_VIEW_TYPE,
+				active: true,
+			});
+		}
+
+		// 激活视图
+		workspace.revealLeaf(leaf);
+	}
+
+	async activateDefinitionSidebarView() {
+		const { workspace } = this.app;
+
+		let leaf = workspace.getLeavesOfType(DEFINITION_SIDEBAR_VIEW_TYPE)[0] as WorkspaceLeaf | null;;
+
+		if (!leaf) {
+			leaf = workspace.getRightLeaf(false);
+			if (!leaf) {
+				return;
+			}
+			await leaf.setViewState({
+				type: DEFINITION_SIDEBAR_VIEW_TYPE,
 				active: true,
 			});
 		}
