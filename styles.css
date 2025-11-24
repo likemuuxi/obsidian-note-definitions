@@ -638,6 +638,7 @@ h4.with-icon {
 .def-sidebar-view {
 	padding: 12px;
 	background: var(--background-primary);
+	overflow-y: scroll !important; /* 改为 scroll */
 }
 
 .def-sidebar-toolbar {
