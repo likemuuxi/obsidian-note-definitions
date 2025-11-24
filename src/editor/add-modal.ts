@@ -183,13 +183,13 @@ export class AddDefinitionModal {
 			
 			try {
 				// 调试信息：打印当前配置
-				console.log("AI配置调试信息:", {
-					currentProvider: this.aiService.aiConfig.currentProvider,
-					providers: this.aiService.aiConfig.providers,
-					enabled: this.aiService.aiConfig.enabled,
-					fileType,
-					targetPath
-				});
+				// console.log("AI配置调试信息:", {
+				// 	currentProvider: this.aiService.aiConfig.currentProvider,
+				// 	providers: this.aiService.aiConfig.providers,
+				// 	enabled: this.aiService.aiConfig.enabled,
+				// 	fileType,
+				// 	targetPath
+				// });
 				
 				// 并行生成定义和别名，传递文件类型和路径信息
 				const [definition, aliases] = await Promise.all([
@@ -197,15 +197,30 @@ export class AddDefinitionModal {
 					this.aiService.generateAliases(word, fileType, targetPath)
 				]);
 				
+				const safeDefinition = (definition || "").trim();
+				const safeAliases = Array.isArray(aliases) ? aliases.filter(a => typeof a === "string" && a.trim()) : [];
+
+				if (!safeDefinition && safeAliases.length === 0) {
+					new Notice("AI没有返回定义或别名，请重试或检查配置");
+					return;
+				}
+
 				// 填充定义文本框
-				defText.value = definition;
-				
-				// 填充别名文本框（只有当前为空时才填充）
-				if (!aliasText.value.trim() && aliases.length > 0) {
-					aliasText.value = aliases.join(', ');
+				if (safeDefinition) {
+					defText.value = safeDefinition;
+				} else {
+					new Notice("AI没有返回定义，请手动填写或重试");
 				}
 				
-				
+				// 填充别名文本框（只有当前为空时才填充）
+				if (!aliasText.value.trim()) {
+					if (safeAliases.length > 0) {
+						aliasText.value = safeAliases.join(', ');
+					} else {
+						new Notice("AI没有返回别名，可手动添加");
+					}
+				}
+
 				// 聚焦到定义文本框以便用户编辑
 				defText.focus();
 				

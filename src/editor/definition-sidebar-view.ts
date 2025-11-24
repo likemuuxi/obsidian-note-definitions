@@ -153,9 +153,9 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		// 类型切换标签
 		const tabs = container.createDiv({ cls: "def-sidebar-tabs" });
 		const tabItems: Array<{ key: string, label: string, icon: string }> = [
-			{ key: 'all', label: 'All', icon: 'file' },
-			{ key: DefFileType.Atomic, label: 'Atomic', icon: 'file-pen' },
-			{ key: DefFileType.Consolidated, label: 'Consolidated', icon: 'folder' },
+			{ key: 'all', label: 'All', icon: 'gallery-vertical-end' },
+			{ key: DefFileType.Atomic, label: 'Atomic', icon: 'list' },
+			{ key: DefFileType.Consolidated, label: 'Consolidated', icon: 'list-tree' },
 		];
 		tabItems.forEach(tab => {
 			const tabEl = tabs.createEl("button", {
