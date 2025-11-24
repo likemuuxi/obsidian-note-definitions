@@ -45,6 +45,7 @@ export class DefinitionManagerView extends ItemView {
 	protected flatBrowseList: Array<{file: TFile, definition: any}> = [];
 	protected isViewActive: boolean = false;
 	protected managerOnly: boolean = false;
+	protected allowRandomStyle: boolean = true;
 
     constructor(leaf: WorkspaceLeaf) {
         super(leaf);
@@ -701,9 +702,11 @@ export class DefinitionManagerView extends ItemView {
         card.style.marginBottom = '16px';
 
         // 添加随机的视觉变化（小红书风格）
-        const randomClass = Math.random() > 0.7 ? 'def-card-featured' : '';
-        if (randomClass) {
-            card.addClass(randomClass);
+        if (this.allowRandomStyle) {
+            const randomClass = Math.random() > 0.7 ? 'def-card-featured' : '';
+            if (randomClass) {
+                card.addClass(randomClass);
+            }
         }
 
         // 卡片头部

@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, TFile } from "obsidian";
+import { WorkspaceLeaf, TFile, setIcon } from "obsidian";
 import { DefinitionManagerView } from "src/editor/definition-manager-view";
 import { ViewMode } from "src/settings";
 import { getDefFileManager } from "src/core/def-file-manager";
@@ -14,6 +14,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
+		this.allowRandomStyle = false;
 	}
 
 	async onOpen() {
@@ -81,8 +82,6 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		if (!this.activeFile) {
 			const empty = container.createDiv({ cls: "def-manager-empty" });
-			const emptyIcon = empty.createDiv({ cls: "def-empty-icon" });
-			emptyIcon.createSpan({ text: "!" });
 			empty.createDiv({ text: "Open a definition file to view its content", cls: "def-empty-title" });
 			return;
 		}
@@ -91,35 +90,13 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		const toolbar = container.createDiv({ cls: "def-sidebar-toolbar" });
 		const actions = toolbar.createDiv({ cls: "def-sidebar-actions" });
 
-		// 类型切换标签
-		const tabs = container.createDiv({ cls: "def-sidebar-tabs" });
-		const tabItems: Array<{ key: string, label: string }> = [
-			{ key: 'all', label: 'All' },
-			{ key: DefFileType.Atomic, label: 'Atomic' },
-			{ key: DefFileType.Consolidated, label: 'Consolidated' },
-		];
-		tabItems.forEach(tab => {
-			const tabEl = tabs.createEl("button", {
-				cls: `def-sidebar-tab ${this.selectedFileType === tab.key ? 'active' : ''}`,
-				text: tab.label
-			});
-			tabEl.addEventListener('click', () => {
-				this.selectedFileType = tab.key;
-				this.selectedSourceFile = 'all';
-				this.applyFilters();
-				this.updateDefinitionList();
-				tabs.querySelectorAll('.def-sidebar-tab').forEach(btn => btn.removeClass('active'));
-				tabEl.addClass('active');
-			});
-		});
-
-		const searchBtn = actions.createEl("button", { cls: "def-toolbar-btn" });
+		const searchBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
 		this.setIconWithLabel(searchBtn, "search");
 
-		const sortBtn = actions.createEl("button", { cls: "def-toolbar-btn" });
+		const sortBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
 		this.setIconWithLabel(sortBtn, "sliders");
 
-		const addBtn = actions.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-primary" });
+		const addBtn = actions.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-primary icon-only" });
 		this.setIconWithLabel(addBtn, "plus");
 		addBtn.addEventListener('click', () => {
 			const modal = new AddDefinitionModal(this.app);
@@ -173,6 +150,30 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			panel.toggleClass("open", open);
 		};
 
+		// 类型切换标签
+		const tabs = container.createDiv({ cls: "def-sidebar-tabs" });
+		const tabItems: Array<{ key: string, label: string, icon: string }> = [
+			{ key: 'all', label: 'All', icon: 'file' },
+			{ key: DefFileType.Atomic, label: 'Atomic', icon: 'file-pen' },
+			{ key: DefFileType.Consolidated, label: 'Consolidated', icon: 'folder' },
+		];
+		tabItems.forEach(tab => {
+			const tabEl = tabs.createEl("button", {
+				cls: `def-sidebar-tab ${this.selectedFileType === tab.key ? 'active' : ''}`,
+				attr: { 'aria-label': tab.label }
+			});
+			const iconSpan = tabEl.createSpan({ cls: "def-sidebar-tab-icon" });
+			setIcon(iconSpan, tab.icon);
+			tabEl.addEventListener('click', () => {
+				this.selectedFileType = tab.key;
+				this.selectedSourceFile = 'all';
+				this.applyFilters();
+				this.updateDefinitionList();
+				tabs.querySelectorAll('.def-sidebar-tab').forEach(btn => btn.removeClass('active'));
+				tabEl.addClass('active');
+			});
+		});
+
 		searchBtn.addEventListener('click', () => {
 			searchOpen = !searchOpen;
 			if (searchOpen) sortOpen = false;
@@ -192,12 +193,30 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		this.createDefinitionList(container);
 	}
 
+	// Sidebar 列表：直接纵向布局，不做瀑布流和随机样式
+	protected updateDefinitionList(listContainer?: Element) {
+		const list = listContainer || this.containerEl.querySelector('.def-manager-list');
+		if (!list) return;
+
+		list.empty();
+
+		if (this.filteredDefinitions.length === 0) {
+			const empty = list.createDiv({ cls: "def-manager-empty" });
+			empty.createDiv({ text: "No matching definitions", cls: "def-empty-title" });
+			return;
+		}
+
+		this.filteredDefinitions.forEach(def => {
+			(this as any).createDefinitionCard(list, def);
+		});
+	}
+
 	getViewType() {
 		return DEFINITION_SIDEBAR_VIEW_TYPE;
 	}
 
 	getDisplayText() {
-		return "Definition Manager";
+		return "Definition Sidebar";
 	}
 
 	getIcon() {
