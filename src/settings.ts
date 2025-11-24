@@ -697,16 +697,29 @@ export class SettingsTab extends PluginSettingTab {
 			});
 	}
 
+	private normalizeBaseUrl(url: string): string {
+		url = url.trim();
+		url = url.replace(/\/v1\/?$/, "");   // 去掉末尾 /v1
+		url = url.replace(/\/+$/, "");       // 去掉多余斜杠
+		if (!/^https?:\/\//i.test(url)) {
+			url = "https://" + url;
+		}
+		return url;
+	}
+
 	private async testConnection() {
 		if (!this.settings.aiConfig) {
 			new Notice("请先配置AI设置");
 			return;
 		}
 
-		const provider = this.settings.aiConfig.currentProvider || 'openai';
-		const providerConfig = this.settings.aiConfig.providers?.[provider as keyof typeof this.settings.aiConfig.providers];
+		const provider = this.settings.aiConfig.currentProvider || "openai";
+		const providerConfig = this.settings.aiConfig.providers?.[
+			provider as keyof typeof this.settings.aiConfig.providers
+		];
+
 		const apiKey = providerConfig?.apiKey;
-		const baseUrl = providerConfig?.baseUrl;
+		let baseUrl = providerConfig?.baseUrl;
 		const model = providerConfig?.model;
 
 		if (!provider || !model) {
@@ -714,7 +727,7 @@ export class SettingsTab extends PluginSettingTab {
 			return;
 		}
 
-		if (provider !== 'ollama' && !apiKey) {
+		if (provider !== "ollama" && !apiKey) {
 			new Notice("请先配置API Key");
 			return;
 		}
@@ -726,50 +739,46 @@ export class SettingsTab extends PluginSettingTab {
 			let headers: Record<string, string>;
 			let requestBody: any;
 
-			if (provider === 'openai') {
-				apiUrl = 'https://api.openai.com/v1/chat/completions';
+			if (provider === "openai") {
+				apiUrl = "https://api.openai.com/v1/chat/completions";
 				headers = {
-					'Authorization': `Bearer ${apiKey}`,
-					'Content-Type': 'application/json',
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
 				};
 				requestBody = {
 					model: model,
-					messages: [{ role: 'user', content: 'test' }],
-					max_tokens: 10
+					messages: [{ role: "user", content: "test" }],
+					max_tokens: 10,
 				};
-			} else if (provider === 'gemini') {
+			} else if (provider === "gemini") {
 				apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 				headers = {
-					'Content-Type': 'application/json',
+					"Content-Type": "application/json",
 				};
 				requestBody = {
-					contents: [{
-						parts: [{ text: 'test' }]
-					}],
-					generationConfig: {
-						maxOutputTokens: 10,
-					}
+					contents: [{ parts: [{ text: "test" }] }],
+					generationConfig: { maxOutputTokens: 10 },
 				};
-			} else if (provider === 'ollama') {
+			} else if (provider === "ollama") {
+				baseUrl = this.normalizeBaseUrl(baseUrl || "");
 				apiUrl = `${baseUrl}/api/generate`;
-				headers = {
-					'Content-Type': 'application/json',
-				};
+				headers = { "Content-Type": "application/json" };
 				requestBody = {
 					model: model,
-					prompt: 'test',
-					stream: false
+					prompt: "test",
+					stream: false,
 				};
-			} else if (provider === 'custom') {
+			} else if (provider === "custom") {
+				baseUrl = this.normalizeBaseUrl(baseUrl || "");
 				apiUrl = `${baseUrl}/v1/chat/completions`;
 				headers = {
-					'Authorization': `Bearer ${apiKey}`,
-					'Content-Type': 'application/json',
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
 				};
 				requestBody = {
 					model: model,
-					messages: [{ role: 'user', content: 'test' }],
-					max_tokens: 10
+					messages: [{ role: "user", content: "test" }],
+					max_tokens: 10,
 				};
 			} else {
 				throw new Error("不支持的提供商");
@@ -777,21 +786,21 @@ export class SettingsTab extends PluginSettingTab {
 
 			const response = await requestUrl({
 				url: apiUrl,
-				method: 'POST',
+				method: "POST",
 				headers: headers,
-				body: JSON.stringify(requestBody)
+				body: JSON.stringify(requestBody),
 			});
 
-			if (response.status === 200) {
+					if (response.status === 200) {
 				notice.hide();
-				new Notice("✅ 连接测试成功！", 3000);
+				new Notice("连接测试成功", 2000);
 			} else {
 				throw new Error(`HTTP ${response.status}`);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			notice.hide();
-			console.error('连接测试失败:', error);
-			new Notice(`❌ 连接测试失败: ${error.message}`, 5000);
+			console.error("连接测试失败:", error);
+			new Notice(`连接测试失败: ${error.message}`, 5000);
 		}
 	}
 

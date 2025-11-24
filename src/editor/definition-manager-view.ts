@@ -19,18 +19,18 @@ export class DefinitionManagerView extends ItemView {
     filteredDefinitions: DefinitionWithSource[] = [];
 
     // 筛选和搜索状态
-    searchTerm: string = '';
-    selectedFileType: string = 'all';
-    selectedSourceFile: string = 'all';
-    sortBy: string = 'name'; // name, created, modified
-    sortOrder: string = 'asc'; // asc, desc
+    protected searchTerm: string = '';
+    protected selectedFileType: string = 'all';
+    protected selectedSourceFile: string = 'all';
+    protected sortBy: string = 'name'; // name, created, modified
+    protected sortOrder: string = 'asc'; // asc, desc
 
     // 瀑布流布局相关
-    private columnCount: number = 0;
-    private columnHeights: number[] = [];
-    private cardWidth: number = 280;
-    private gap: number = 16;
-    private resizeObserver?: ResizeObserver;
+    protected columnCount: number = 0;
+    protected columnHeights: number[] = [];
+    protected cardWidth: number = 280;
+    protected gap: number = 16;
+    protected resizeObserver?: ResizeObserver;
 
     // 设置相关
 	protected enableTruncation: boolean = true;
@@ -62,7 +62,7 @@ export class DefinitionManagerView extends ItemView {
         return "swatch-book";
     }
 
-	private setIconWithLabel(target: HTMLElement, icon: string, label?: string) {
+	protected setIconWithLabel(target: HTMLElement, icon: string, label?: string) {
 		target.empty();
 		target.addClass("with-icon");
 
@@ -136,7 +136,7 @@ export class DefinitionManagerView extends ItemView {
         this.flatBrowseList = [];
     }
 
-    private async loadDefinitions() {
+    protected async loadDefinitions() {
         this.definitions = [];
         const defManager = getDefFileManager();
 
@@ -158,7 +158,7 @@ export class DefinitionManagerView extends ItemView {
         this.applyFilters();
     }
 
-    private applyFilters() {
+    protected applyFilters() {
         this.filteredDefinitions = this.definitions.filter(def => {
             // 搜索过滤
             if (this.searchTerm) {
@@ -469,7 +469,7 @@ export class DefinitionManagerView extends ItemView {
         this.updateDefinitionList(listContainer);
     }
 
-    	private updateDefinitionList(listContainer?: Element) {
+    	protected updateDefinitionList(listContainer?: Element) {
 		const list = listContainer || this.containerEl.querySelector('.def-manager-list');
 		if (!list) return;
 
@@ -501,7 +501,7 @@ export class DefinitionManagerView extends ItemView {
 	}
 
     // 等待所有卡片渲染完成
-    private async waitForCardsToRender(cards: HTMLElement[]): Promise<void> {
+    protected async waitForCardsToRender(cards: HTMLElement[]): Promise<void> {
         return new Promise((resolve) => {
             // 等待多个渲染周期确保MarkdownRenderer完成
             let checkCount = 0;
