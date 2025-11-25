@@ -109,6 +109,17 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		const sortBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
 		this.setIconWithLabel(sortBtn, "sliders");
 
+		let expandAll = false;
+		const toggleAllBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
+		const updateToggleBtn = () => {
+			const icon = expandAll ? "fold-vertical" : "unfold-vertical";
+			const label = expandAll ? "Collapse all definitions" : "Expand all definitions";
+			this.setIconWithLabel(toggleAllBtn, icon);
+			toggleAllBtn.setAttr("aria-label", label);
+			toggleAllBtn.setAttr("title", label);
+		};
+		updateToggleBtn();
+
 		// const addBtn = actions.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-primary icon-only" });
 		// this.setIconWithLabel(addBtn, "plus");
 		// addBtn.addEventListener('click', () => {
@@ -200,6 +211,22 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			if (sortOpen) searchOpen = false;
 			togglePanel(sortPanel, sortOpen);
 			togglePanel(searchPanel, searchOpen);
+		});
+
+		const toggleDefinitions = (expand: boolean) => {
+			const cards = container.querySelectorAll('.def-card-definition');
+			cards.forEach(defEl => {
+				const isExpanded = (defEl as HTMLElement).getAttribute("data-expanded") === "true";
+				if (expand !== isExpanded) {
+					defEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+				}
+			});
+		};
+
+		toggleAllBtn.addEventListener('click', () => {
+			expandAll = !expandAll;
+			updateToggleBtn();
+			toggleDefinitions(expandAll);
 		});
 
 		// 列表

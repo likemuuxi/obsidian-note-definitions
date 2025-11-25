@@ -806,6 +806,8 @@ export class DefinitionManagerView extends ItemView {
                 definitionEl.style.cursor = 'default';
                 definitionEl.title = '';
             }
+
+            definitionEl.setAttr('data-expanded', expanded ? 'true' : 'false');
         };
 
         renderDefinition();
