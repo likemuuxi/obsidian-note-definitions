@@ -252,6 +252,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		const container = this.containerEl.children[1];
 		container.empty();
 		container.addClass("def-sidebar-view");
+		container.toggleClass("def-search-mode", !!this.searchResults);
 
 		if (this.searchResults) {
 			this.renderSearchResults(container);
