@@ -693,7 +693,7 @@ export class DefinitionManagerView extends ItemView {
 
     private cleanupResizeListener?: () => void;
 
-    private createDefinitionCard(container: Element, def: DefinitionWithSource): HTMLElement {
+    protected createDefinitionCard(container: Element, def: DefinitionWithSource): HTMLElement {
         const card = container.createDiv({ cls: "def-card" });
 
         // 初始时设置为相对定位，等待布局完成后改为绝对定位
@@ -1168,6 +1168,7 @@ export class DefinitionManagerView extends ItemView {
                 break;
         }
     }
+
 
     private async performBatchDelete(option: string, optionsContainer: Element) {
         let defsToDelete: DefinitionWithSource[] = [];
