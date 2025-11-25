@@ -19,7 +19,7 @@ import { initDefinitionModal } from './editor/mobile/definition-modal';
 import { FMSuggestModal } from './editor/frontmatter-suggest-modal';
 import { registerDefFile } from './editor/def-file-registration';
 import { DefFileType } from './core/file-type';
-import { DefFileUpdater } from './core/def-file-updater';
+import { DefFileUpdater, DEFINITIONS_UPDATED_EVENT } from './core/def-file-updater';
 import { FlashcardManager } from './core/flashcard-manager';
 import { Modal } from 'obsidian';
 
@@ -163,6 +163,8 @@ export default class NoteDefinition extends Plugin {
 			callback: () => {
 				this.fileExplorerDeco.run();
 				this.defManager.loadDefinitions();
+				this.refreshOpenDefinitionViews();
+				this.refreshEditorDecorations();
 			}
 		});
 
@@ -215,6 +217,13 @@ export default class NoteDefinition extends Plugin {
 			this.reloadUpdatedDefinitions();
 			this.updateEditorExts();
 			this.defManager.updateActiveFile();
+			this.refreshEditorDecorations();
+		}));
+
+		this.registerEvent(this.app.workspace.on(DEFINITIONS_UPDATED_EVENT, async () => {
+			this.reloadUpdatedDefinitions();
+			this.refreshOpenDefinitionViews();
+			this.refreshEditorDecorations();
 		}));
 
 		this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => {
@@ -343,6 +352,40 @@ export default class NoteDefinition extends Plugin {
 		this.activeEditorExtensions.length = 0;
 		this.activeEditorExtensions.push(...ext);
 		this.app.workspace.updateOptions();
+	}
+
+	private refreshEditorDecorations() {
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (activeView) {
+			// @ts-expect-error not typed
+			const view = activeView.editor.cm as EditorView;
+			const plugin = view.plugin(definitionMarker);
+			if (plugin?.forceUpdate) {
+				plugin.forceUpdate();
+			}
+		}
+	}
+
+	private async refreshOpenDefinitionViews() {
+		// Refresh sidebar views
+		const sidebarLeaves = this.app.workspace.getLeavesOfType(DEFINITION_SIDEBAR_VIEW_TYPE);
+		for (const leaf of sidebarLeaves) {
+			const view = leaf.view as any;
+			if (view?.loadDefinitions && view?.render) {
+				await view.loadDefinitions();
+				view.render();
+			}
+		}
+
+		// Refresh manager views
+		const managerLeaves = this.app.workspace.getLeavesOfType(DEFINITION_MANAGER_VIEW_TYPE);
+		for (const leaf of managerLeaves) {
+			const view = leaf.view as any;
+			if (view?.loadDefinitions && view?.render) {
+				await view.loadDefinitions();
+				view.render();
+			}
+		}
 	}
 
 	async activateDefinitionManagerView() {

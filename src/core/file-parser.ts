@@ -1,5 +1,4 @@
 import { App, TFile } from "obsidian";
-import { getSettings } from "src/settings";
 import { AtomicDefParser } from "./atomic-def-parser";
 import { ConsolidatedDefParser } from "./consolidated-def-parser";
 import { DefFileType } from "./file-type";
@@ -9,7 +8,7 @@ export const DEF_TYPE_FM = "def-type";
 
 export class FileParser {
 	app: App;
-	file: TFile
+	file: TFile;
 	defFileType?: DefFileType;
 
 	constructor(app: App, file: TFile) {
@@ -20,7 +19,11 @@ export class FileParser {
 	// Optional argument used when file cache may not be updated
 	// and we know the new contents of the file
 	async parseFile(fileContent?: string): Promise<Definition[]> {
-		this.defFileType = this.getDefFileType();
+		if (!fileContent) {
+			fileContent = await this.app.vault.cachedRead(this.file);
+		}
+
+		this.defFileType = this.getDefFileType(fileContent);
 
 		// 如果文件没有明确的def-type属性，跳过处理
 		if (!this.defFileType) {
@@ -28,26 +31,47 @@ export class FileParser {
 		}
 
 		switch (this.defFileType) {
-			case DefFileType.Consolidated:
+			case DefFileType.Consolidated: {
 				const defParser = new ConsolidatedDefParser(this.app, this.file);
 				return defParser.parseFile(fileContent);
-			case DefFileType.Atomic:
+			}
+			case DefFileType.Atomic: {
 				const atomicParser = new AtomicDefParser(this.app, this.file);
 				return atomicParser.parseFile(fileContent);
+			}
 			default:
 				return [];
 		}
 	}
 
-	private getDefFileType(): DefFileType | undefined {
+	private getDefFileType(fileContent?: string): DefFileType | undefined {
 		const fileCache = this.app.metadataCache.getFileCache(this.file);
 		const fmFileType = fileCache?.frontmatter?.[DEF_TYPE_FM];
-		if (fmFileType && 
+		if (fmFileType &&
 			(fmFileType === DefFileType.Consolidated || fmFileType === DefFileType.Atomic)) {
 			return fmFileType;
 		}
-		
-		// 不再有回退机制，只处理明确标记了def-type的文件
+
+		// Frontmatter cache might not be ready; fall back to scanning file content
+		if (fileContent) {
+			const fmMatch = fileContent.match(/^---\s*[\r\n]+([\s\S]*?)\r?\n---/);
+			if (fmMatch && fmMatch[1]) {
+				const lines = fmMatch[1].split(/\r?\n/);
+				for (const line of lines) {
+					const match = line.match(/^\s*def-type\s*:\s*(.+)\s*$/i);
+					if (match) {
+						const raw = match[1].trim().toLowerCase();
+						if (raw === DefFileType.Consolidated || raw === "consolidated") {
+							return DefFileType.Consolidated;
+						}
+						if (raw === DefFileType.Atomic || raw === "atomic") {
+							return DefFileType.Atomic;
+						}
+					}
+				}
+			}
+		}
+
 		return undefined;
 	}
 }

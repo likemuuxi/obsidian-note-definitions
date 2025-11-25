@@ -7,6 +7,7 @@ import { DefFileType } from "./file-type";
 import { FrontmatterBuilder } from "./fm-builder";
 import { Definition, FilePosition } from "./model";
 
+export const DEFINITIONS_UPDATED_EVENT = "obsidian-note-definitions:definitions-updated";
 
 export class DefFileUpdater {
 	app: App;
@@ -24,6 +25,7 @@ export class DefFileUpdater {
 			return;
 		}
 		await getDefFileManager().loadUpdatedFiles();
+		this.notifyDefinitionsUpdated();
 		new Notice("Definition successfully modified");
 	}
 
@@ -36,11 +38,23 @@ export class DefFileUpdater {
 			return;
 		}
 		await getDefFileManager().loadUpdatedFiles();
+		this.notifyDefinitionsUpdated();
 		new Notice("Definition successfully deleted");
 	}
 
 	private async updateAtomicDefFile(def: Definition) {
-		await this.app.vault.modify(def.file, def.definition);
+		const fileContent = await this.app.vault.read(def.file);
+		const fileMetadata = this.app.metadataCache.getFileCache(def.file);
+		const fmPos = fileMetadata?.frontmatterPosition;
+
+		const body = fmPos ? fileContent.slice(fmPos.end.offset + 1) : fileContent;
+		const frontmatterText = fmPos ? fileContent.slice(0, fmPos.end.offset + 1) : "";
+
+		const updatedFrontmatter = frontmatterText
+			? this.updateAtomicFrontmatter(frontmatterText, def.aliases)
+			: this.buildAtomicFrontmatter(def.aliases);
+
+		await this.app.vault.modify(def.file, updatedFrontmatter + def.definition);
 	}
 
 	private async updateConsolidatedDefFile(def: Definition) {
@@ -92,7 +106,12 @@ export class DefFileUpdater {
 			await this.addAtomicFileDefinition(def, folder);
 		}
 		await getDefFileManager().loadUpdatedFiles();
+		this.notifyDefinitionsUpdated();
 		new Notice("Definition succesfully added");
+	}
+
+	private notifyDefinitionsUpdated() {
+		this.app.workspace.trigger(DEFINITIONS_UPDATED_EVENT);
 	}
 
 	private async addAtomicFileDefinition(def: Partial<Definition>, folder?: string) {
@@ -143,6 +162,51 @@ export class DefFileUpdater {
 		const dividerSettings = getSettings().defFileParseConfig.divider;
 		let sepChoice = dividerSettings.underscore ? "___" : "---";
 		lines.push('', sepChoice);
+	}
+
+	private updateAtomicFrontmatter(frontmatterText: string, aliases: string[]) {
+		const lines = frontmatterText.split(/\r?\n/);
+		const contentLines = lines.slice(1, -1); // strip --- wrappers
+
+		const newFm: string[] = [];
+		let hasAlias = false;
+		let hasDefType = false;
+
+		contentLines.forEach(line => {
+			if (/^\s*aliases\s*:/.test(line)) {
+				hasAlias = true;
+				if (aliases.length > 0) {
+					newFm.push("aliases:");
+					aliases.forEach(alias => newFm.push(`- ${alias}`));
+				}
+				return;
+			}
+			if (/^\s*def-type\s*:/.test(line)) {
+				hasDefType = true;
+			}
+			newFm.push(line);
+		});
+
+		if (!hasAlias && aliases.length > 0) {
+			newFm.push("aliases:");
+			aliases.forEach(alias => newFm.push(`- ${alias}`));
+		}
+
+		if (!hasDefType) {
+			newFm.unshift("def-type: atomic");
+		}
+
+		return ['---', ...newFm, '---', ''].join('\n');
+	}
+
+	private buildAtomicFrontmatter(aliases: string[]) {
+		const fmBuilder = new FrontmatterBuilder();
+		fmBuilder.add("def-type", "atomic");
+		if (aliases && aliases.length > 0) {
+			const lines = aliases.map(alias => `- ${alias}`);
+			fmBuilder.add("aliases", "\n" + lines.join("\n"));
+		}
+		return fmBuilder.finish();
 	}
 	
 	private checkEndedWithSeparator(lines: string[]): boolean {

@@ -3,8 +3,8 @@ import { DefinitionManagerView } from "src/editor/definition-manager-view";
 import { ViewMode } from "src/settings";
 import { getDefFileManager } from "src/core/def-file-manager";
 import { AddDefinitionModal } from "src/editor/add-modal";
-import { FileParser } from "src/core/file-parser";
 import { DefFileType } from "src/core/file-type";
+import { DEFINITIONS_UPDATED_EVENT } from "src/core/def-file-updater";
 
 export const DEFINITION_SIDEBAR_VIEW_TYPE = "definition-sidebar-view";
 
@@ -32,6 +32,13 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 				}
 			})
 		);
+		this.registerEvent(
+			this.app.workspace.on(DEFINITIONS_UPDATED_EVENT, async () => {
+				this.activeFile = this.getActiveFile();
+				await this.loadDefinitions();
+				this.render();
+			})
+		);
 
 		this.activeFile = this.getActiveFile();
 		await this.loadDefinitions();
@@ -45,26 +52,32 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		if (file) {
 			const content = (await this.app.vault.read(file)).toLowerCase();
-			const matchKeys = new Set<string>();
+			const matchedDefs = new Map<string, typeof this.definitions[number]>();
+			const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-			defManager.globalDefs.getAllKeys().forEach(key => {
+			defManager.globalDefs.getAllKeys().forEach(rawKey => {
+				const key = rawKey?.toLowerCase();
 				if (!key) return;
-				if (content.includes(key.toLowerCase())) {
-					matchKeys.add(key.toLowerCase());
-				}
-			});
 
-			matchKeys.forEach(key => {
+				// Match as a standalone word/phrase to avoid substring collisions
+				const pattern = new RegExp(`(^|\\W)${escapeRegExp(key)}(\\W|$)`);
+				if (!pattern.test(content)) return;
+
 				const def = defManager.globalDefs.get(key);
 				if (!def || !def.file) return;
+				const uniqueKey = `${def.file.path}::${def.key}`;
+				if (matchedDefs.has(uniqueKey)) return;
+
 				const fileType = defManager.getFileType(def.file);
-				this.definitions.push({
+				matchedDefs.set(uniqueKey, {
 					...def,
 					sourceFile: def.file,
 					fileType,
 					filePath: def.file.path
 				});
 			});
+
+			this.definitions = Array.from(matchedDefs.values());
 		}
 
 		this.applyFilters();

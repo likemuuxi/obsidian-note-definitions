@@ -463,9 +463,8 @@ export class AddDefinitionModal {
 						const newFolderPath = `${basePath}/${cleanPath}`;
 						
 						try {
-							// 创建文件夹（通过创建一个临时文件然后删除）
-							const tempFile = await this.app.vault.create(`${newFolderPath}/.temp`, "");
-							await this.app.vault.delete(tempFile);
+							// 直接创建文件夹，如果已存在则提示
+							await this.app.vault.createFolder(newFolderPath);
 							
 							// 更新下拉框选项
 							this.refreshFolderDropdown();
@@ -474,8 +473,14 @@ export class AddDefinitionModal {
 							this.atomicFolderPicker.setValue(newFolderPath + "/");
 							
 							new Notice(`Subfolders have been created: ${newFolderPath}`);
-						} catch (error) {
-							new Notice(`Failed to create the subfolder: ${error.message}`);
+						} catch (error: any) {
+							const message = error?.message || String(error);
+							// Obsidian 会在文件夹已存在时抛出异常，单独提示
+							if (message.toLowerCase().includes("exists")) {
+								new Notice("The subfolder already exists.");
+							} else {
+								new Notice(`Failed to create the subfolder: ${message}`);
+							}
 						}
 					}
 				}
