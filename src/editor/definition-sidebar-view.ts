@@ -143,10 +143,6 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		title.setText(`Matches for "${this.searchResults?.def.word}"`);
 
 		const content = container.createDiv({ cls: "def-search-results" });
-		content.style.padding = "0 8px 12px";
-		content.style.display = "flex";
-		content.style.flexDirection = "column";
-		content.style.gap = "8px";
 
 		if (!this.searchResults || this.searchResults.matches.length === 0) {
 			const empty = content.createDiv({ cls: "def-manager-empty" });
@@ -155,13 +151,6 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		}
 
 		const list = content.createEl("ul", { cls: "def-usage-list" });
-		list.style.listStyle = "none";
-		list.style.padding = "0";
-		list.style.margin = "0";
-		list.style.display = "flex";
-		list.style.flexDirection = "column";
-		list.style.gap = "8px";
-		list.style.width = "100%";
 
 		const needles = [this.searchResults.def.word, ...(this.searchResults.def.aliases || [])]
 			.filter(Boolean)
@@ -169,48 +158,17 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		this.searchResults.matches.forEach(match => {
 			const item = list.createEl("li", { cls: "def-usage-item" });
-			item.style.listStyle = "none";
-			item.style.width = "100%";
-
 			const card = item.createDiv({ cls: "def-usage-card" });
-			card.style.display = "flex";
-			card.style.flexDirection = "column";
-			card.style.gap = "6px";
-			card.style.padding = "10px 12px";
-			card.style.borderRadius = "10px";
-			card.style.border = "1px solid var(--background-modifier-border)";
-			card.style.background = "var(--background-secondary)";
-			card.style.boxShadow = "0 1px 2px var(--background-modifier-box-shadow)";
-			card.style.cursor = "pointer";
-			card.style.boxSizing = "border-box";
 
 			const header = card.createDiv({ cls: "def-usage-header" });
-			header.style.display = "flex";
-			header.style.alignItems = "center";
-			header.style.gap = "8px";
 
 			const lineBadge = header.createDiv({ cls: "def-usage-line" });
 			lineBadge.textContent = `Line ${match.line + 1}`;
-			lineBadge.style.background = "var(--tag-background)";
-			lineBadge.style.color = "var(--tag-color)";
-			lineBadge.style.border = "1px solid var(--tag-border-color)";
-			lineBadge.style.borderRadius = "6px";
-			lineBadge.style.padding = "2px 8px";
-			lineBadge.style.fontSize = "12px";
 
 			const fileLabel = header.createDiv({ cls: "def-usage-file" });
 			fileLabel.textContent = this.searchResults.file.name;
-			fileLabel.style.fontSize = "12px";
-			fileLabel.style.color = "var(--text-muted)";
 
 			const body = card.createDiv({ cls: "def-usage-body" });
-			body.style.whiteSpace = "normal";
-			body.style.wordBreak = "break-word";
-			body.style.textAlign = "left";
-			body.style.lineHeight = "1.6";
-			body.style.fontFamily = "var(--font-interface)";
-			body.style.fontSize = "13px";
-
 			body.innerHTML = `${this.highlightNeedles(match.text, needles)}`;
 
 			card.addEventListener("click", async () => {

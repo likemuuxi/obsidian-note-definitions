@@ -638,6 +638,7 @@ h4.with-icon {
 .def-sidebar-view {
 	padding: 12px;
 	background: var(--background-primary);
+	overflow-y: scroll !important; /* 改为 scroll */
 }
 
 .def-sidebar-toolbar {
@@ -1680,3 +1681,49 @@ h4.with-icon {
 		height: 150px !important;
 	}
 }
+/* Sidebar search button positioning */
+.def-card-search-btn {
+	position: absolute;
+	bottom: 25px;
+	right: 8px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.def-card-search-btn .def-card-action-btn {
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+}
+
+/* Keep search header pinned on scroll */
+.def-search-header {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	padding: 8px 12px;
+	background: var(--background-primary);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.def-sidebar-view.def-search-mode {
+	padding: 0 12px 12px;
+}
+
+.def-search-title {
+	font-size: 1.4em;
+	font-weight: 600;
+	color: var(--text-accent);
+	padding: 5px;
+	margin: 5px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.def-search-results {
+	margin-top: 10px;
+}
+

@@ -1681,22 +1681,6 @@ h4.with-icon {
 		height: 150px !important;
 	}
 }
-/* Sidebar search button positioning */
-.def-card-search-btn {
-	position: absolute;
-	bottom: 25px;
-	right: 8px;
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-}
-
-.def-card-search-btn .def-card-action-btn {
-	padding: 6px 8px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
-	background: var(--background-secondary);
-}
 
 /* Keep search header pinned on scroll */
 .def-search-header {
@@ -1725,5 +1709,86 @@ h4.with-icon {
 
 .def-search-results {
 	margin-top: 10px;
+	padding: 0 8px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
 }
 
+.def-usage-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	width: 100%;
+}
+
+.def-usage-item {
+	list-style: none;
+	width: 100%;
+}
+
+.def-usage-card {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px 12px;
+	border-radius: 10px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	box-shadow: 0 1px 2px var(--background-modifier-box-shadow);
+	cursor: pointer;
+	box-sizing: border-box;
+}
+
+.def-usage-card:hover {
+	border: 1px solid var(--text-accent);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.def-usage-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.def-usage-line {
+	background: var(--tag-background);
+	color: var(--tag-color);
+	border: 1px solid var(--tag-border-color);
+	border-radius: 6px;
+	padding: 2px 8px;
+	font-size: 12px;
+}
+
+.def-usage-file {
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.def-usage-body {
+	white-space: normal;
+	word-break: break-word;
+	text-align: left;
+	line-height: 1.6;
+	font-family: var(--font-interface);
+	font-size: 13px;
+}
+/* Sidebar search button positioning */
+.def-card-search-btn {
+	position: absolute;
+	bottom: 25px;
+	right: 8px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.def-card-search-btn .def-card-action-btn {
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+}

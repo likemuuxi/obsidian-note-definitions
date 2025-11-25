@@ -175,9 +175,8 @@ export class AIService {
 				body: JSON.stringify(requestBody)
 			});
 
-			console.log('AI API 响应数据:', response);
-
 			const data = response.json;
+			console.log('AI data 响应数据:', data);
 
 			if (currentProvider === 'openai' || currentProvider === 'custom') {
 				return data?.choices?.[0]?.message?.content?.trim()
@@ -281,9 +280,9 @@ export class AIService {
 				body: JSON.stringify(requestBody)
 			});
 
-			console.log('AI API 响应数据:', response);
-
 			const data = response.json;
+			console.log('AI data 响应数据:', data);
+
 			let aliasText = '';
 
 			if (currentProvider === 'openai' || currentProvider === 'custom') {
