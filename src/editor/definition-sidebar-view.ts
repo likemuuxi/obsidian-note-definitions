@@ -109,12 +109,12 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		const sortBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
 		this.setIconWithLabel(sortBtn, "sliders");
 
-		const addBtn = actions.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-primary icon-only" });
-		this.setIconWithLabel(addBtn, "plus");
-		addBtn.addEventListener('click', () => {
-			const modal = new AddDefinitionModal(this.app);
-			modal.open();
-		});
+		// const addBtn = actions.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-primary icon-only" });
+		// this.setIconWithLabel(addBtn, "plus");
+		// addBtn.addEventListener('click', () => {
+		// 	const modal = new AddDefinitionModal(this.app);
+		// 	modal.open();
+		// });
 
 		// 展开面板：搜索
 		const searchPanel = container.createDiv({ cls: "sidebar-panel" });

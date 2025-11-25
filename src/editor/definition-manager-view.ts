@@ -773,49 +773,48 @@ export class DefinitionManagerView extends ItemView {
             });
         }
 
-        // 定义内容 - 使用MarkdownRenderer渲染
+        // 定义内容 - 使用MarkdownRenderer渲染，支持点击折叠/展开（无额外按钮）
         const definitionEl = card.createDiv({ cls: "def-card-definition" });
 
-        // 根据设置决定是否截断内容
-        let definitionText = def.definition;
-        let isTruncated = false;
+        const maxLength = 200;
+        const hasLongContent = this.enableTruncation && def.definition.length > maxLength;
+        const truncatedText = hasLongContent
+            ? (() => {
+                const cut = def.definition.lastIndexOf('。', maxLength);
+                const altCut = def.definition.lastIndexOf('.', maxLength);
+                const end = cut >= 0 ? cut + 1 : (altCut >= 0 ? altCut + 1 : maxLength);
+                return def.definition.substring(0, end) + "...";
+            })()
+            : def.definition;
 
-        if (this.enableTruncation) {
-            const maxLength = 200;
-            if (definitionText.length > maxLength) {
-                // 尝试在句号处截断
-                const truncateAt = definitionText.lastIndexOf('。', maxLength) ||
-                    definitionText.lastIndexOf('.', maxLength) ||
-                    maxLength;
-                definitionText = definitionText.substring(0, truncateAt) + "...";
-                isTruncated = true;
-            }
-        }
+        let expanded = false;
 
-        // 使用MarkdownRenderer渲染内容
-        MarkdownRenderer.render(
-            this.app,
-            definitionText,
-            definitionEl,
-            def.sourceFile.path,
-            new Component()
-        );
+        const renderDefinition = () => {
+            definitionEl.empty();
+            MarkdownRenderer.render(
+                this.app,
+                expanded || !hasLongContent ? def.definition : truncatedText,
+                definitionEl,
+                def.sourceFile.path,
+                new Component()
+            );
 
-        // 如果内容被截断，添加点击展开功能
-        if (isTruncated) {
-            definitionEl.style.cursor = 'pointer';
-            definitionEl.title = '点击查看完整定义';
-            definitionEl.addEventListener('click', () => {
-                definitionEl.empty();
-                MarkdownRenderer.render(
-                    this.app,
-                    def.definition,
-                    definitionEl,
-                    def.sourceFile.path,
-                    new Component()
-                );
+            if (hasLongContent) {
+                definitionEl.style.cursor = 'pointer';
+                definitionEl.title = expanded ? '点击折叠' : '点击展开';
+            } else {
                 definitionEl.style.cursor = 'default';
                 definitionEl.title = '';
+            }
+        };
+
+        renderDefinition();
+
+        if (hasLongContent) {
+            definitionEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                expanded = !expanded;
+                renderDefinition();
             });
         }
 
