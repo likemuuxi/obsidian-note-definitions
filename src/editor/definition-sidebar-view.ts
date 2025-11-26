@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, TFile, setIcon, MarkdownView, Notice } from "obsidian";
+import { WorkspaceLeaf, TFile, setIcon, MarkdownView, Notice, Menu } from "obsidian";
 import { DefinitionManagerView } from "src/editor/definition-manager-view";
 import { ViewMode } from "src/settings";
 import { getDefFileManager } from "src/core/def-file-manager";
@@ -13,6 +13,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 	protected managerOnly = true;
 	private activeFile: TFile | null = null;
 	private searchResults: { file: TFile; def: Definition; matches: Array<{ line: number; text: string }> } | null = null;
+	private sidebarScrollTop: number | null = null;
 
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
@@ -108,6 +109,11 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 	}
 
 	private async openSearchView(def: Definition) {
+		const scroller = this.getSidebarScrollElement();
+		if (scroller) {
+			this.sidebarScrollTop = scroller.scrollTop;
+		}
+
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
 			new Notice("No active file to search in.");
@@ -128,6 +134,12 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		this.searchResults = { file: activeFile, def, matches };
 		this.render();
+	}
+
+	private getSidebarScrollElement(): HTMLElement | null {
+		const listSection = this.containerEl.querySelector('.def-sidebar-list-section') as HTMLElement | null;
+		if (listSection) return listSection;
+		return this.containerEl.querySelector('.def-manager-list') as HTMLElement | null;
 	}
 
 	private renderSearchResults(container: Element) {
@@ -224,7 +236,9 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		}
 
 		// 工具栏（单行图标）
-		const toolbar = container.createDiv({ cls: "def-sidebar-toolbar" });
+		const topControls = container.createDiv({ cls: "def-sidebar-top" });
+
+		const toolbar = topControls.createDiv({ cls: "def-sidebar-toolbar" });
 		const actions = toolbar.createDiv({ cls: "def-sidebar-actions" });
 
 		const searchBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
@@ -252,7 +266,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		// });
 
 		// 展开面板：搜索
-		const searchPanel = container.createDiv({ cls: "sidebar-panel" });
+		const searchPanel = topControls.createDiv({ cls: "sidebar-panel" });
 		const searchInput = searchPanel.createEl("input", {
 			cls: "def-manager-search",
 			attr: { placeholder: "Search..." }
@@ -264,22 +278,85 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			this.updateDefinitionList();
 		});
 
-		// 展开面板：排序
-		const sortPanel = container.createDiv({ cls: "sidebar-panel" });
-		const sortSelect = sortPanel.createEl("select", { cls: "def-manager-select" });
-		sortSelect.innerHTML = `
-			<option value="name">Name</option>
-			<option value="created">Created</option>
-			<option value="modified">Modified</option>
-		`;
-		sortSelect.value = this.sortBy;
-		sortSelect.addEventListener('change', (e) => {
-			this.sortBy = (e.target as HTMLSelectElement).value;
-			this.applyFilters();
-			this.updateDefinitionList();
+		let searchOpen = false;
+		let sortOpen = false;
+
+		const togglePanel = (panel: HTMLElement, open: boolean) => {
+			panel.toggleClass("open", open);
+		};
+
+		// 展开面板：排序 + 类型切换
+		const sortPanel = topControls.createDiv({ cls: "sidebar-panel" });
+		const sortRow = sortPanel.createDiv({ cls: "def-sort-row" });
+
+		const sortControls = sortRow.createDiv({ cls: "def-sort-controls" });
+
+		const typeBtn = sortControls.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-select" });
+		const typeLabels: Record<string, string> = {
+			all: "All Types",
+			[DefFileType.Atomic]: "Atomic",
+			[DefFileType.Consolidated]: "Consolidated",
+		};
+		const updateTypeBtn = () => {
+			typeBtn.setText(typeLabels[this.selectedFileType] ?? "Type");
+		};
+		updateTypeBtn();
+		typeBtn.addEventListener('click', (evt) => {
+			const menu = new Menu();
+			[
+				{ key: 'all', label: typeLabels['all'] },
+				{ key: DefFileType.Atomic, label: typeLabels[DefFileType.Atomic] },
+				{ key: DefFileType.Consolidated, label: typeLabels[DefFileType.Consolidated] },
+			].forEach(item => {
+				menu.addItem(mi => {
+					mi.setTitle(item.label);
+					if (item.key === this.selectedFileType) mi.setIcon("check");
+					mi.onClick(() => {
+						if (this.selectedFileType === item.key) return;
+						this.selectedFileType = item.key;
+						this.selectedSourceFile = 'all';
+						this.applyFilters();
+						this.updateDefinitionList();
+						updateTypeBtn();
+					});
+				});
+			});
+			menu.showAtPosition({ x: evt.clientX, y: evt.clientY });
 		});
 
-		const orderBtn = sortPanel.createEl("button", { cls: "def-toolbar-btn" });
+		const sortBtnSelect = sortControls.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-select" });
+		const sortLabels: Record<string, string> = {
+			name: "Name",
+			created: "Created",
+			modified: "Modified",
+		};
+		const updateSortBtn = () => {
+			sortBtnSelect.setText(sortLabels[this.sortBy] ?? "Sort");
+		};
+		updateSortBtn();
+		sortBtnSelect.addEventListener('click', (evt) => {
+			const menu = new Menu();
+			[
+				{ key: 'name', label: sortLabels.name },
+				{ key: 'created', label: sortLabels.created },
+				{ key: 'modified', label: sortLabels.modified },
+			].forEach(item => {
+				menu.addItem(mi => {
+					mi.setTitle(item.label);
+					if (item.key === this.sortBy) mi.setIcon("check");
+					mi.onClick(() => {
+						if (this.sortBy === item.key) return;
+						this.sortBy = item.key;
+						this.applyFilters();
+						this.updateDefinitionList();
+						updateSortBtn();
+					});
+				});
+			});
+			menu.showAtPosition({ x: evt.clientX, y: evt.clientY });
+		});
+
+		const orderBtn = sortControls.createEl("button", { cls: "def-toolbar-btn" });
 		const updateOrderBtn = () => {
 			this.setIconWithLabel(orderBtn, this.sortOrder === 'asc' ? "arrow-up" : "arrow-down");
 		};
@@ -289,37 +366,6 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			updateOrderBtn();
 			this.applyFilters();
 			this.updateDefinitionList();
-		});
-
-		let searchOpen = false;
-		let sortOpen = false;
-
-		const togglePanel = (panel: HTMLElement, open: boolean) => {
-			panel.toggleClass("open", open);
-		};
-
-		// 类型切换标签
-		const tabs = container.createDiv({ cls: "def-sidebar-tabs" });
-		const tabItems: Array<{ key: string, label: string, icon: string }> = [
-			{ key: 'all', label: 'All', icon: 'gallery-vertical-end' },
-			{ key: DefFileType.Atomic, label: 'Atomic', icon: 'list' },
-			{ key: DefFileType.Consolidated, label: 'Consolidated', icon: 'list-tree' },
-		];
-		tabItems.forEach(tab => {
-			const tabEl = tabs.createEl("button", {
-				cls: `def-sidebar-tab ${this.selectedFileType === tab.key ? 'active' : ''}`,
-				attr: { 'aria-label': tab.label }
-			});
-			const iconSpan = tabEl.createSpan({ cls: "def-sidebar-tab-icon" });
-			setIcon(iconSpan, tab.icon);
-			tabEl.addEventListener('click', () => {
-				this.selectedFileType = tab.key;
-				this.selectedSourceFile = 'all';
-				this.applyFilters();
-				this.updateDefinitionList();
-				tabs.querySelectorAll('.def-sidebar-tab').forEach(btn => btn.removeClass('active'));
-				tabEl.addClass('active');
-			});
 		});
 
 		searchBtn.addEventListener('click', () => {
@@ -354,7 +400,17 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		});
 
 		// 列表
-		this.createDefinitionList(container);
+		const listSection = container.createDiv({ cls: "def-sidebar-list-section" });
+		this.createDefinitionList(listSection);
+
+		// 恢复退出搜索时的滚动位置
+		if (this.sidebarScrollTop !== null) {
+			const scroller = this.getSidebarScrollElement();
+			if (scroller) {
+				scroller.scrollTo({ top: this.sidebarScrollTop });
+			}
+			this.sidebarScrollTop = null;
+		}
 	}
 
 	// Sidebar 列表：直接纵向布局，不做瀑布流和随机样式

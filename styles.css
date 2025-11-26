@@ -430,6 +430,7 @@ h4.with-icon {
 
 .def-card:hover {
 	border-color: var(--interactive-accent);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .def-card-header {
@@ -636,9 +637,21 @@ h4.with-icon {
 }
 
 .def-sidebar-view {
-	padding: 12px;
+	padding: 0 12px 12px;
 	background: var(--background-primary);
-	overflow-y: scroll !important; /* 改为 scroll */
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	height: 100%;
+}
+
+.def-sidebar-top {
+	position: sticky;
+	top: 0;
+	z-index: 4;
+	background: var(--background-primary);
+	padding: 0px;
 }
 
 .def-sidebar-toolbar {
@@ -648,7 +661,7 @@ h4.with-icon {
 	margin-bottom: 8px;
 	padding: 8px 10px;
 	background: var(--background-secondary);
-	border-radius: 10px;
+	border-radius: 12px;
 	border: 1px solid var(--background-modifier-border);
 }
 
@@ -677,22 +690,62 @@ h4.with-icon {
 	color: white;
 }
 
+.def-sidebar-list-section {
+	flex: 1;
+	overflow-y: auto;
+	padding-top: 8px;
+}
+
 .sidebar-panel {
 	display: none;
 	margin-bottom: 8px;
+	position: sticky;
+	top: 48px; /* below sticky toolbar */
+	z-index: 2;
+	background: var(--background-primary);
 }
 
 .sidebar-panel.open {
 	display: block;
 }
 
+.def-sort-row {
+	display: flex;
+	align-items: stretch;
+	gap: 8px;
+	flex-wrap: wrap;
+	width: 100%;
+}
+
+.def-sort-controls {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+.def-sort-controls .def-manager-select {
+	min-width: 120px;
+	flex: 1;
+}
+
+.def-sort-controls .def-toolbar-btn {
+	flex-shrink: 0;
+}
+
+.def-toolbar-btn-select {
+	min-width: 110px;
+	justify-content: center;
+}
+
 .def-sidebar-tabs {
-	display: grid;
-	grid-template-columns: repeat(3, 1fr);
+	display: flex;
+	align-items: center;
 	gap: 6px;
-	margin: 8px 0;
-	padding: 6px 0;
-	border-top: 1px solid var(--background-modifier-border);
+	margin: 0;
+	padding: 0;
 }
 
 .def-sidebar-tab {
@@ -1776,19 +1829,21 @@ h4.with-icon {
 	font-family: var(--font-interface);
 	font-size: 13px;
 }
+
 /* Sidebar search button positioning */
 .def-card-search-btn {
 	position: absolute;
-	bottom: 25px;
+	bottom: 20px;
 	right: 8px;
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.2s ease;
 }
 
-.def-card-search-btn .def-card-action-btn {
-	padding: 6px 8px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
-	background: var(--background-secondary);
+.def-card:hover .def-card-search-btn {
+	opacity: 1;
+	pointer-events: auto;
 }
