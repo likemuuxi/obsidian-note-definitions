@@ -699,7 +699,7 @@ export class DefinitionManagerView extends ItemView {
         // 初始时设置为相对定位，等待布局完成后改为绝对定位
         card.style.position = 'relative';
         card.style.width = '100%';
-        card.style.marginBottom = '16px';
+        card.style.marginBottom = '8px';
 
         // 添加随机的视觉变化（小红书风格）
         if (this.allowRandomStyle) {

@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, TFile, setIcon, MarkdownView, Notice, Menu } from "obsidian";
+import { WorkspaceLeaf, TFile, setIcon, MarkdownView, Notice, Menu, MarkdownRenderer } from "obsidian";
 import { DefinitionManagerView } from "src/editor/definition-manager-view";
 import { ViewMode } from "src/settings";
 import { getDefFileManager } from "src/core/def-file-manager";
@@ -178,10 +178,17 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			lineBadge.textContent = `Line ${match.line + 1}`;
 
 			const fileLabel = header.createDiv({ cls: "def-usage-file" });
-			fileLabel.textContent = this.searchResults.file.name;
+			fileLabel.textContent = this.searchResults?.file.name ?? "";
 
 			const body = card.createDiv({ cls: "def-usage-body" });
-			body.innerHTML = `${this.highlightNeedles(match.text, needles)}`;
+				const renderedBody = body.createDiv({ cls: "def-usage-body-md" });
+				MarkdownRenderer.render(
+					this.app,
+					this.highlightNeedles(match.text, needles),
+					renderedBody,
+					this.searchResults?.file.path ?? "",
+					this
+				);
 
 			card.addEventListener("click", async () => {
 				if (!this.searchResults) return;

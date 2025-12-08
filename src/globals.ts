@@ -1,7 +1,6 @@
-import { App, Platform } from "obsidian";
+import { App } from "obsidian";
 import { DefinitionRepo, getDefFileManager } from "./core/def-file-manager";
 import { getDefinitionPopover } from "./editor/definition-popover";
-import { getDefinitionModal } from "./editor/mobile/definition-modal";
 import { getSettings, PopoverDismissType, Settings } from "./settings";
 import { LogLevel } from "./util/log";
 
@@ -35,12 +34,6 @@ export function injectGlobals(settings: Settings, app: App, targetWindow: Window
 
 			const def = getDefFileManager().get(word);
 			if (!def) return;
-
-			if (Platform.isMobile) {
-				const defModal = getDefinitionModal();
-				defModal.open(def);
-				return;
-			}
 
 			const defPopover = getDefinitionPopover();
 			let isOpen = false;

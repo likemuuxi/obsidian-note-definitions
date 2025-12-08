@@ -83,12 +83,12 @@ export class DefinitionPopover extends Component {
 		return cmEditor;
 	}
 
-	private shouldOpenToLeft(horizontalOffset: number, containerStyle: CSSStyleDeclaration): boolean {
-		return horizontalOffset > parseInt(containerStyle.width) / 2;
+	private shouldOpenToLeft(horizontalOffset: number, containerWidth: number): boolean {
+		return horizontalOffset > containerWidth / 2;
 	}
 
-	private shouldOpenUpwards(verticalOffset: number, containerStyle: CSSStyleDeclaration): boolean {
-		return verticalOffset > parseInt(containerStyle.height) / 2;
+	private shouldOpenUpwards(verticalOffset: number, containerHeight: number): boolean {
+		return verticalOffset > containerHeight / 2;
 	}
 
 	// Creates popover element and its children, without displaying it 
@@ -103,11 +103,17 @@ export class DefinitionPopover extends Component {
 			},
 		});
 
-		el.createEl("h2", { text: def.word });
+		const header = el.createDiv({ cls: "definition-popover-header" });
+		header.createEl("div", { cls: "definition-popover-word", text: def.word });
+
 		if (def.aliases.length > 0 && popoverSettings.displayAliases) {
-			el.createEl("i", { text: def.aliases.join(", ") });
+			header.createDiv({
+				cls: "definition-popover-alias-text",
+				text: def.aliases.join(", ")
+			});
 		}
-		const contentEl = el.createEl("div");
+
+		const contentEl = el.createEl("div", { cls: "definition-popover-body" });
 		contentEl.setAttr("ctx", "def-popup");
 
 		const currComponent = this;
@@ -158,16 +164,6 @@ export class DefinitionPopover extends Component {
 	}
 
 	// Offset coordinates from viewport coordinates to coordinates relative to the parent container element
-	private offsetCoordsToContainer(coords: Coordinates, container: HTMLElement): Coordinates {
-		const containerRect = container.getBoundingClientRect();
-		return {
-			left: coords.left - containerRect.left,
-			right: coords.right - containerRect.left,
-			top: coords.top - containerRect.top,
-			bottom: coords.bottom - containerRect.top
-		}
-	}
-
 	private mountAtCoordinates(def: Definition, coords: Coordinates) {
 		const mdView = this.app.workspace.getActiveViewOfType(MarkdownView)
 		if (!mdView) {
@@ -175,7 +171,7 @@ export class DefinitionPopover extends Component {
 			return;
 		}
 
-		this.mountedPopover = this.createElement(def, mdView.containerEl);
+		this.mountedPopover = this.createElement(def, document.body);
 		this.positionAndSizePopover(mdView, coords);
 	}
 
@@ -185,37 +181,34 @@ export class DefinitionPopover extends Component {
 			return;
 		}
 		const popoverSettings = getSettings().defPopoverConfig;
-		const containerStyle = getComputedStyle(mdView.containerEl);
-		const matchedClasses = mdView.containerEl.getElementsByClassName("view-header");
-		// The container div has a header element that needs to be accounted for
-		let offsetHeaderHeight = 0;
-		if (matchedClasses.length > 0) {
-			offsetHeaderHeight = parseInt(getComputedStyle(matchedClasses[0]).height);
-		}
-
-		// Offset coordinates to be relative to container
-		coords = this.offsetCoordsToContainer(coords, mdView.containerEl);
+		const viewportWidth = window.innerWidth;
+		const viewportHeight = window.innerHeight;
 
 		const positionStyle: Partial<CSSStyleDeclaration> = {
 			visibility: 'visible',
 		};
 
-		positionStyle.maxWidth = popoverSettings.enableCustomSize && popoverSettings.maxWidth ? 
-			`${popoverSettings.maxWidth}px` : `${parseInt(containerStyle.width) / 2}px`;
-		if (this.shouldOpenToLeft(coords.left, containerStyle)) {
-			positionStyle.right = `${parseInt(containerStyle.width) - coords.right}px`;
+		const useCustomSize = popoverSettings.enableCustomSize;
+		if (useCustomSize && popoverSettings.maxWidth) {
+			positionStyle.maxWidth = `${popoverSettings.maxWidth}px`;
+		}
+
+		if (this.shouldOpenToLeft(coords.left, viewportWidth)) {
+			positionStyle.right = `${viewportWidth - coords.right}px`;
 		} else {
 			positionStyle.left = `${coords.left}px`;
 		}
 
-		if (this.shouldOpenUpwards(coords.top, containerStyle)) {
-			positionStyle.bottom = `${parseInt(containerStyle.height) - coords.top}px`;
-			positionStyle.maxHeight = popoverSettings.enableCustomSize && popoverSettings.maxHeight ? 
-				`${popoverSettings.maxHeight}px` : `${coords.top - offsetHeaderHeight}px`;
+		if (this.shouldOpenUpwards(coords.top, viewportHeight)) {
+			positionStyle.bottom = `${viewportHeight - coords.top}px`;
+			if (useCustomSize && popoverSettings.maxHeight) {
+				positionStyle.maxHeight = `${popoverSettings.maxHeight}px`;
+			}
 		} else {
 			positionStyle.top = `${coords.bottom}px`;
-			positionStyle.maxHeight = popoverSettings.enableCustomSize && popoverSettings.maxHeight ?
-				`${popoverSettings.maxHeight}px` : `${parseInt(containerStyle.height) - coords.bottom}px`;
+			if (useCustomSize && popoverSettings.maxHeight) {
+				positionStyle.maxHeight = `${popoverSettings.maxHeight}px`;
+			}
 		}
 
 		this.mountedPopover.setCssStyles(positionStyle);

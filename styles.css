@@ -1,28 +1,169 @@
 .definition-popover {
-	background-color: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border-hover);
-	border-radius: var(--radius-m);
-	position: absolute;
-	padding: var(--size-4-2) var(--size-4-3);
-	box-shadow: var(--shadow-s);
-	min-height: 100px;
-	min-width: 150px;
+	position: fixed;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: var(--size-4-4) var(--size-4-5);
+	min-height: 120px;
+	min-width: 200px;
+	max-width: clamp(240px, 45vw, 420px);
+	max-height: 35vh;
 	overflow: auto;
+	background: color-mix(in srgb, var(--background-primary) 85%, var(--background-secondary) 15%);
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border-hover) 70%, transparent);
+	border-radius: calc(var(--radius-l, var(--radius-m)) + 2px);
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16), 0 2px 10px rgba(0, 0, 0, 0.08);
+	z-index: 9999;
+	backdrop-filter: blur(6px);
+	transform-origin: top left;
+	animation: def-popover-enter 160ms ease-out;
+	will-change: transform, opacity;
+}
+
+@media (max-width: 640px) {
+	.definition-popover {
+		width: 90vw;
+		max-width: 90vw;
+		min-width: 170px;
+		max-height: 65vh;
+	}
+}
+
+.definition-popover:hover {
+	box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2), 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Markdown 标题间距优化 - Tooltip */
+.definition-popover h1,
+.definition-popover h2,
+.definition-popover h3,
+.definition-popover h4,
+.definition-popover h5,
+.definition-popover h6 {
+	margin: 6px 0 4px 0; /* 减小上下间距 */
+	line-height: 1.25;   /* 更紧凑的行高 */
+	color: color-mix(in srgb, var(--text-normal) 88%, var(--text-muted) 12%);
+	font-weight: 600;
+}
+.definition-popover h1 { font-size: 1.1em; }
+.definition-popover h2 { font-size: 1.05em; }
+.definition-popover h3 { font-size: 1.02em; }
+.definition-popover h4 { font-size: 1em; }
+.definition-popover h5 { font-size: 0.95em; }
+.definition-popover h6 { font-size: 0.9em; }
+.definition-popover > :first-child {
+	margin-top: 0 !important; /* 首元素无多余顶距 */
+}
+.definition-popover > :last-child {
+	margin-bottom: 0 !important; /* 尾元素无多余底距 */
+}
+
+.definition-popover-header {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	align-items: flex-start;
+	padding-bottom: 8px;
+	background: color-mix(in srgb, var(--background-primary) 90%, var(--background-modifier-form-field) 10%);
+	border-bottom: 2px dashed color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
+}
+
+.definition-popover-word {
+	font-size: 1.05em;
+	font-weight: 700;
+	color: var(--interactive-accent);
+}
+
+.definition-popover-alias-text {
+	font-size: 0.9em;
+	font-style: italic;
+	color: color-mix(in srgb, var(--text-muted) 80%, var(--text-normal) 20%);
+}
+
+.definition-popover-body {
+	padding: 6px;
+}
+
+.definition-popover p,
+.definition-popover ul,
+.definition-popover ol {
+	margin: 0.2em 0;
+	line-height: 1.55;
+	color: color-mix(in srgb, var(--text-normal) 82%, var(--text-muted) 18%);
+	font-size: 0.96em;
+}
+
+.definition-popover ul,
+.definition-popover ol {
+	padding-left: 2.35em;
+	margin-left: 0;
+	list-style-position: outside;
+}
+
+.definition-popover ul { list-style-type: disc; }
+.definition-popover ol { list-style-type: decimal; }
+.definition-popover li { margin: 0.1em 0; padding-left: 0.1em; }
+
+.definition-popover blockquote {
+	margin: 0.35em 0;
+	padding: 6px 10px;
+	border-left: 2px solid var(--color-grey);
+	background: color-mix(in srgb, var(--background-primary) 92%, var(--interactive-accent) 8%);
+	border-radius: var(--radius-s, 6px);
+}
+
+.definition-popover code {
+	padding: 2px 6px;
+	border-radius: var(--radius-s, 6px);
+	background: var(--background-modifier-form-field);
+	font-family: var(--font-monospace);
+	font-size: 0.95em;
+}
+
+.definition-popover hr {
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 8px 0;
 }
 
 .definition-popover-filename {
-	color: var(--text-faint);
-	float: right;
+	color: var(--text-muted);
+	align-self: flex-end;
+	font-size: 0.85em;
 }
 
-.def-decoration {
+@keyframes def-popover-enter {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.98);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+/* .def-decoration {
 	text-decoration: underline var(--color-yellow) dotted;
 	-webkit-text-decoration: underline var(--color-yellow) dotted;
+} */
+.def-decoration {
+	border-bottom: 2px dashed var(--color-grey, var(--text-muted));
 }
 
-.def-link-decoration {
+.def-decoration:hover {
+	background-color: color-mix(in srgb, var(--color-grey, var(--text-muted)) 15%, transparent);
+	border-bottom: 2px solid var(--color-grey, var(--text-muted));
+}
+
+/* .def-link-decoration {
 	text-decoration: underline var(--color-green) dotted;
 	-webkit-text-decoration: underline var(--color-green) dotted;
+	cursor: pointer;
+} */
+
+.def-link-decoration {
+	border-bottom: 2px dashed var(--color-green, var(--text-muted));
 	cursor: pointer;
 }
 
@@ -417,34 +558,30 @@ h4.with-icon {
 
 /* 卡片样式 */
 .def-card {
-	background: var(--background-primary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-primary) 85%, var(--background-secondary) 15%);
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border-hover) 70%, transparent);
+	border-radius: 14px;
 	padding: 16px;
-	transition: all 0.2s ease;
 	box-sizing: border-box;
-	/* box-shadow: 0 2px 8px rgba(0,0,0,0.08); */
 	overflow-wrap: break-word;
 	word-wrap: break-word;
 }
 
 .def-card:hover {
-	border-color: var(--interactive-accent);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	border-color: color-mix(in srgb, var(--interactive-accent) 60%, var(--background-modifier-border) 40%);
+	box-shadow: 1px 2px rgba(0,0,0,0.2);
 }
 
 .def-card-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: flex-start;
-	margin-bottom: 12px;
 }
 
 .def-card-word {
-	font-size: 20px;
-	font-weight: 700;
-	color: var(--text-normal);
 	margin: 0;
+	padding: 6px;
+	color: var(--interactive-accent);
 	line-height: 1.2;
 	word-break: break-word;
 }
@@ -501,10 +638,12 @@ h4.with-icon {
 
 .def-card-definition {
 	color: var(--text-normal);
-	line-height: 1.6;
-	margin-bottom: 12px;
+	line-height: 1.4;
+	margin-bottom: 6px;
 	font-size: 14px;
 	word-break: break-word;
+	padding: 6px;
+	position: relative;
 }
 
 /* MarkdownRenderer渲染内容的样式 */
@@ -530,7 +669,7 @@ h4.with-icon {
 .def-card-definition ul,
 .def-card-definition ol {
 	margin: 4px 0;
-	padding-left: 16px;
+	padding-left: 1.35em;
 }
 
 .def-card-definition li {
@@ -545,10 +684,12 @@ h4.with-icon {
 }
 
 .def-card-definition blockquote {
-	border-left: 2px solid var(--interactive-accent);
-	padding-left: 8px;
-	margin: 4px 0;
-	color: var(--text-muted);
+	margin: 0.35em 0;
+	padding: 6px 10px;
+	border-left: 3px solid var(--interactive-accent);
+	background: color-mix(in srgb, var(--background-primary) 92%, var(--interactive-accent) 8%);
+	border-radius: var(--radius-s, 6px);
+	color: var(--text-normal);
 }
 
 .def-card-definition a {
@@ -564,14 +705,22 @@ h4.with-icon {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 6px;
+	margin: 6px 0 10px 0;
+	color: color-mix(in srgb, var(--text-muted) 85%, var(--text-normal) 15%);
+	font-size: 13px;
+	font-style: italic;
+
+	padding-bottom: 8px;
+	background: color-mix(in srgb, var(--background-primary) 90%, var(--background-modifier-form-field) 10%);
+	border-bottom: 2px dashed color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
 }
 
 .def-card-alias {
-	background: var(--interactive-accent);
-	color: white;
-	padding: 3px 8px;
-	border-radius: 10px;
-	font-size: 11px;
+	background: none;
+	color: inherit;
+	padding: 0;
+	border-radius: 0;
+	font-size: inherit;
 	font-weight: 500;
 }
 
@@ -638,7 +787,7 @@ h4.with-icon {
 
 .def-sidebar-view {
 	padding: 0 12px 12px;
-	background: var(--background-primary);
+	background: var(--background-base);
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
@@ -650,7 +799,7 @@ h4.with-icon {
 	position: sticky;
 	top: 0;
 	z-index: 4;
-	background: var(--background-primary);
+	background: var(--background-base);
 	padding: 0px;
 }
 
@@ -693,7 +842,6 @@ h4.with-icon {
 .def-sidebar-list-section {
 	flex: 1;
 	overflow-y: auto;
-	padding-top: 8px;
 }
 
 .sidebar-panel {
@@ -702,7 +850,7 @@ h4.with-icon {
 	position: sticky;
 	top: 48px; /* below sticky toolbar */
 	z-index: 2;
-	background: var(--background-primary);
+	background: var(--background-base);
 }
 
 .sidebar-panel.open {
@@ -1741,7 +1889,7 @@ h4.with-icon {
 	top: 0;
 	z-index: 2;
 	padding: 8px 12px;
-	background: var(--background-primary);
+	background: var(--background-base);
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
@@ -1790,7 +1938,7 @@ h4.with-icon {
 	padding: 10px 12px;
 	border-radius: 10px;
 	border: 1px solid var(--background-modifier-border);
-	background: var(--background-secondary);
+	background: var(--background-primary);
 	box-shadow: 0 1px 2px var(--background-modifier-box-shadow);
 	cursor: pointer;
 	box-sizing: border-box;
