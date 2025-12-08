@@ -36,7 +36,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			})
 		);
 		this.registerEvent(
-			this.app.workspace.on(DEFINITIONS_UPDATED_EVENT, async () => {
+			this.app.workspace.on(DEFINITIONS_UPDATED_EVENT as any, async () => {
 				this.activeFile = this.getActiveFile();
 				await this.loadDefinitions();
 				this.render();
@@ -55,7 +55,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		if (file) {
 			const content = (await this.app.vault.read(file)).toLowerCase();
-			const matchedDefs = new Map<string, typeof this.definitions[number]>();
+			const matchedDefs = new Map<string, Definition & { sourceFile: TFile; fileType: DefFileType; filePath: string }>();
 			const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 			defManager.globalDefs.getAllKeys().forEach(rawKey => {

@@ -42,9 +42,9 @@ export default class NoteDefinition extends Plugin {
 			await this.flashcardManager.loadData(data);
 		}
 
-		this.registerEvent(this.app.workspace.on('window-open', (win: WorkspaceWindow, newWindow: Window) => {
-			injectGlobals(settings, this.app, newWindow);
-		}))
+			this.registerEvent(this.app.workspace.on('window-open', (win: WorkspaceWindow, newWindow: Window) => {
+				injectGlobals(settings, this.app, newWindow);
+			}))
 
 		logDebug("Load note definition plugin");
 
@@ -220,11 +220,11 @@ export default class NoteDefinition extends Plugin {
 			this.refreshEditorDecorations();
 		}));
 
-		this.registerEvent(this.app.workspace.on(DEFINITIONS_UPDATED_EVENT, async () => {
-			this.reloadUpdatedDefinitions();
-			this.refreshOpenDefinitionViews();
-			this.refreshEditorDecorations();
-		}));
+			this.registerEvent(this.app.workspace.on(DEFINITIONS_UPDATED_EVENT as any, async () => {
+				this.reloadUpdatedDefinitions();
+				this.refreshOpenDefinitionViews();
+				this.refreshEditorDecorations();
+			}));
 
 		this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => {
 			const defPopover = getDefinitionPopover();
