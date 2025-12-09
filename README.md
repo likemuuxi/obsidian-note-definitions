@@ -1,3 +1,6 @@
+> A community-maintained fork of [dominiclet](https://github.com/dominiclet/obsidian-note-definitions)
+> There is something in the Readme that is not suitable for this fork project and needs to be modified.
+
 # Obsidian Note Definitions
 
 A personal dictionary that can be easily looked-up from within your notes.
