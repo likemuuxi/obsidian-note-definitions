@@ -22,12 +22,12 @@ jobs:
           npm install
           npm run build
 
-      - name: Create release
+      - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-
           gh release create "$tag" \
             --title "$tag" \
+            --notes "Release $tag" \
             main.js manifest.json styles.css
