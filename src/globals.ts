@@ -1,6 +1,7 @@
-import { App } from "obsidian";
+import { App, Platform } from "obsidian";
 import { DefinitionRepo, getDefFileManager } from "./core/def-file-manager";
 import { getDefinitionPopover } from "./editor/definition-popover";
+import { getDefinitionModal } from "./editor/mobile/definition-modal";
 import { getSettings, PopoverDismissType, Settings } from "./settings";
 import { LogLevel } from "./util/log";
 
@@ -37,6 +38,17 @@ export function injectGlobals(settings: Settings, app: App, targetWindow: Window
 
 			const defPopover = getDefinitionPopover();
 			let isOpen = false;
+
+			if (Platform.isMobile) {
+				const centerCoords = {
+					left: window.innerWidth / 2,
+					right: window.innerWidth / 2,
+					top: window.innerHeight / 2,
+					bottom: window.innerHeight / 2,
+				};
+				defPopover.openAtCoords(def, centerCoords as any, { center: true });
+				return;
+			}
 
 			if (el.onmouseenter) {
 				const openPopover = setTimeout(() => {

@@ -44,9 +44,9 @@ export class DefinitionPopover extends Component {
 	}
 
 	// Open at coordinates (can use for opening at mouse position)
-	openAtCoords(def: Definition, coords: Coordinates) {
+	openAtCoords(def: Definition, coords: Coordinates, options?: { center?: boolean }) {
 		this.unmount();
-		this.mountAtCoordinates(def, coords);
+		this.mountAtCoordinates(def, coords, options);
 
 		if (!this.mountedPopover) {
 			logError("mounting definition popover failed");
@@ -164,7 +164,7 @@ export class DefinitionPopover extends Component {
 	}
 
 	// Offset coordinates from viewport coordinates to coordinates relative to the parent container element
-	private mountAtCoordinates(def: Definition, coords: Coordinates) {
+	private mountAtCoordinates(def: Definition, coords: Coordinates, options?: { center?: boolean }) {
 		const mdView = this.app.workspace.getActiveViewOfType(MarkdownView)
 		if (!mdView) {
 			logError("Could not mount popover: No active markdown view found");
@@ -172,17 +172,18 @@ export class DefinitionPopover extends Component {
 		}
 
 		this.mountedPopover = this.createElement(def, document.body);
-		this.positionAndSizePopover(mdView, coords);
+		this.positionAndSizePopover(mdView, coords, options);
 	}
 
 	// Position and display popover
-	private positionAndSizePopover(mdView: MarkdownView, coords: Coordinates) {
+	private positionAndSizePopover(mdView: MarkdownView, coords: Coordinates, options?: { center?: boolean }) {
 		if (!this.mountedPopover) {
 			return;
 		}
 		const popoverSettings = getSettings().defPopoverConfig;
 		const viewportWidth = window.innerWidth;
 		const viewportHeight = window.innerHeight;
+		const isCenter = options?.center === true;
 
 		const positionStyle: Partial<CSSStyleDeclaration> = {
 			visibility: 'visible',
@@ -191,6 +192,24 @@ export class DefinitionPopover extends Component {
 		const useCustomSize = popoverSettings.enableCustomSize;
 		if (useCustomSize && popoverSettings.maxWidth) {
 			positionStyle.maxWidth = `${popoverSettings.maxWidth}px`;
+		}
+
+		if (isCenter) {
+			positionStyle.left = "50%";
+			positionStyle.top = "50%";
+			positionStyle.transform = "translate(-50%, -50%)";
+			// Disable enter animation to avoid transform override
+			positionStyle.animation = "none";
+			// Fallback height to keep modal visible when custom size not set
+			if (!useCustomSize) {
+				positionStyle.maxHeight = "70vh";
+				positionStyle.maxWidth = "90vw";
+			}
+			if (useCustomSize && popoverSettings.maxHeight) {
+				positionStyle.maxHeight = `${popoverSettings.maxHeight}px`;
+			}
+			this.mountedPopover.setCssStyles(positionStyle);
+			return;
 		}
 
 		if (this.shouldOpenToLeft(coords.left, viewportWidth)) {

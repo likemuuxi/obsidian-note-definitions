@@ -65,8 +65,12 @@ export class DefinitionManagerView extends ItemView {
 
 	protected setIconWithLabel(target: HTMLElement, icon: string, label?: string) {
 		target.empty();
-		target.addClass("with-icon");
-
+		if(label === undefined || label === "") {
+			target.addClass("icon-only");
+		} else {
+			target.addClass("with-icon");
+		}
+		
 		const iconSpan = target.createSpan({ cls: "with-icon-icon" });
 		setIcon(iconSpan, icon);
 
@@ -742,6 +746,7 @@ export class DefinitionManagerView extends ItemView {
 		this.setIconWithLabel(deleteBtn, "trash-2");
 		deleteBtn.setAttribute("aria-label", "Delete");
 		deleteBtn.title = "Delete";
+		deleteBtn.style.color = "red";
 		deleteBtn.addEventListener('click', (e) => {
 			e.stopPropagation();
 			console.log('Delete button clicked for:', def.word);
@@ -788,6 +793,18 @@ export class DefinitionManagerView extends ItemView {
             : def.definition;
 
         let expanded = false;
+        const applySidebarCardHeight = () => {
+            if (!this.managerOnly) return;
+            if (expanded) {
+                card.classList.remove("def-card-collapsed");
+                card.style.height = "auto";
+                card.style.overflow = "visible";
+            } else {
+                card.classList.add("def-card-collapsed");
+                card.style.height = "auto";
+                card.style.overflow = "hidden";
+            }
+        };
 
         const renderDefinition = () => {
             definitionEl.empty();
@@ -808,17 +825,31 @@ export class DefinitionManagerView extends ItemView {
             }
 
             definitionEl.setAttr('data-expanded', expanded ? 'true' : 'false');
+            applySidebarCardHeight();
         };
 
         renderDefinition();
 
+        const toggleExpand = () => {
+            if (!this.managerOnly) return;
+            expanded = !expanded;
+            renderDefinition();
+        };
+
         if (hasLongContent) {
             definitionEl.addEventListener('click', (e) => {
                 e.stopPropagation();
-                expanded = !expanded;
-                renderDefinition();
+                toggleExpand();
             });
         }
+
+        // Sidebar cards: clicking the card toggles expanded/collapsed to reveal definition
+        card.addEventListener('click', (e) => {
+            if (!this.managerOnly) return;
+            // avoid double toggle from inner buttons
+            if ((e.target as HTMLElement)?.closest(".def-card-action-btn")) return;
+            toggleExpand();
+        });
 
         // 时间信息
         const timeInfo = card.createDiv({ cls: "def-card-time-info" });
