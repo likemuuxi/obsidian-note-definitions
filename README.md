@@ -1,7 +1,8 @@
 > A community-maintained fork of [dominiclet](https://github.com/dominiclet/obsidian-note-definitions).
-> 
-> This plugin is still in testing version, and there may be functional changes. Please be informed.
-> And there is something in the Readme that is not suitable for this fork project and needs to be modified.
+>
+> Please be informed.
+> This plugin is still in testing version, and there may be functional changes.
+> There is something in the Readme that is not suitable for this fork project and needs to be modified.
 
 # Obsidian Note Definitions
 
