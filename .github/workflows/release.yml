@@ -21,10 +21,18 @@ jobs:
           node-version: "20"
           cache: 'npm'
 
-      - name: Build plugin
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        id: build
         run: |
-          npm install
           npm run build
+          mkdir ${{ env.PLUGIN_NAME }}
+          cp main.js manifest.json styles.css ${{ env.PLUGIN_NAME }}
+          zip -r ${{ env.PLUGIN_NAME }}.zip ${{ env.PLUGIN_NAME }}
+          ls
+          echo "tag_name=$(git tag --sort version:refname | tail -n 1)" >> $GITHUB_ENV
 
       - name: Create Release
         id: create_release
