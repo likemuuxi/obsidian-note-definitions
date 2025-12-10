@@ -1,11 +1,8 @@
-> A community-maintained fork of [dominiclet](https://github.com/dominiclet/obsidian-note-definitions).
->
-> Please be informed.
-> 
-> This plugin is still in testing version, and there may be functional changes.
-> There is something in the Readme that is not suitable for this fork project and needs to be modified.
-
 # Obsidian Note Definitions
+
+English Doc｜[中文文档](https://github.com/likemuuxi/obsidian-note-definitions/blob/master/README_zh.md)
+
+> A community-maintained fork of [dominiclet](https://github.com/dominiclet/obsidian-note-definitions). This plugin is still in testing version, and there may be functional changes.
 
 A personal dictionary that can be easily looked-up from within your notes.
 
@@ -28,13 +25,15 @@ Options available:
 ### Commands
 
 You may want to assign hotkeys to the commands available for easy access:
-- Preview definition (show definition popover)
-- Go to definition (jump to definition of word/phrase)
-- Add definition
-- Add definition context (see [Definition context](#definition-context))
-- Register consolidated definition file
-- Register atomic definition file
-- Refresh definitions
+- Note Definitions: Add definition (add definition)
+- Note Definitions: Go to definition (go to definition)
+- Note Definitions: Preview definition (preview definition)
+- Note Definitions: Refresh definitions (refresh definitions)
+- Note Definitions: Add definition context (see [Definition context](#definition-context) below)
+- Note Definitions: Open Definition Sidebar (open definition sidebar)
+- Note Definitions: Open Definition Manager (open definition manager)
+- Note Definitions: Register atomic definition file (register atomic type)
+- Note Definitions: Register consolidated definition file (register consolidated type)
 
 ## How it works
 
@@ -48,8 +47,7 @@ You may edit these entries freely to add/edit your definitions, but if you do so
 
 Currently, there are two types of definition files: `consolidated` and `atomic`.
 The type of definition file is specified in the `def-type` frontmatter (or property) of a file.
-For all definition files you create, the `def-type` frontmatter should be set to either 'consolidated' or 'atomic'.
-For compatibility reasons, a file is treated to be `consolidated` if the `def-type` frontmatter is not specified (but this is not guaranteed to remain the same in subsequent releases, so always specify the frontmatter when creating a new definition file). 
+For all definition files you create, the `def-type` frontmatter should be set to either 'consolidated' or 'atomic'. Do not recognize if not specified.
 For convenience, use the commands provided to add the `def-type` frontmatter.
 
 #### Consolidated definition file
@@ -156,11 +154,13 @@ Or if you want to remove all contexts, you can delete the `def-context` property
 
 Whenever you find that the plugin is not detecting certain definitions or definition files, run the `Refresh definitions` command to manually get the plugin to read your definition files.
 
-## Feedback
+## Feedback and Contributing
 
-I welcome any feedback on how to improve this tool.
+Welcome any feedback on how to improve this tool.
 Do let me know by opening a Github issue if you find any bugs, or have any ideas for features or improvements.
 
-## Contributing
+# ☕Go to sponsor
 
-If you're a programmer and would like to see certain features implemented, I welcome and would be grateful for contributions. If you are interested, please do let me know in the issue thread.
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Z8Z31JZHLJ)
+
+<a href="https://www.buymeacoffee.com/1204871655e" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>

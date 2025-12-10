@@ -862,17 +862,37 @@ h4.with-icon {
 	z-index: 4;
 	background: var(--background-base);
 	padding: 0px;
+	border-radius: 12px;
+	border: 1.5px solid var(--background-modifier-border);
 }
 
-.def-sidebar-toolbar {
+.def-sidebar-toolbar,
+.def-sort-row {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	margin-bottom: 8px;
 	padding: 8px 10px;
-	background: var(--background-secondary);
-	border-radius: 12px;
-	border: 1px solid var(--background-modifier-border);
+}
+
+/* Sidebar type/sort dropdowns */
+.def-type-dropdown,
+.def-sort-dropdown {
+	min-width: 140px;
+	max-width: 50%;
+	flex: 1 1 0;
+	min-width: 0;
+
+}
+
+.def-type-dropdown:hover,
+.def-type-dropdown:focus-visible,
+.def-sort-dropdown:hover,
+.def-sort-dropdown:focus-visible {
+	border-color: var(--background-modifier-border);
+}
+
+.def-sidebar-search {
+	flex: 1;
 }
 
 .def-sidebar-actions {
@@ -881,36 +901,9 @@ h4.with-icon {
 	gap: 8px;
 }
 
-.def-toolbar-btn.def-toolbar-btn-primary.icon-only {
-	background: var(--interactive-accent);
-	border-color: var(--interactive-accent);
-	color: white;
-}
-
 .def-sidebar-list-section {
 	flex: 1;
 	overflow-y: auto;
-}
-
-.sidebar-panel {
-	display: none;
-	margin-bottom: 8px;
-	position: sticky;
-	top: 48px; /* below sticky toolbar */
-	z-index: 2;
-	background: var(--background-base);
-}
-
-.sidebar-panel.open {
-	display: block;
-}
-
-.def-sort-row {
-	display: flex;
-	align-items: stretch;
-	gap: 8px;
-	flex-wrap: wrap;
-	width: 100%;
 }
 
 .def-sort-controls {
@@ -919,58 +912,9 @@ h4.with-icon {
 	gap: 8px;
 	flex: 1;
 	min-width: 0;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
+	width: 100%;
 }
-
-.def-sort-controls .def-manager-select {
-	min-width: 120px;
-	flex: 1;
-}
-
-.def-sort-controls .def-toolbar-btn {
-	flex-shrink: 0;
-}
-
-.def-toolbar-btn-select {
-	min-width: 110px;
-	justify-content: center;
-}
-
-.def-sidebar-tabs {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	margin: 0;
-	padding: 0;
-}
-
-.def-sidebar-tab {
-	background: var(--background-secondary);
-	color: var(--text-muted);
-	border-radius: 6px;
-	padding: 8px 12px;
-	cursor: pointer;
-	font-size: 12px;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 6px;
-	position: relative;
-}
-
-.def-sidebar-tab.active {
-	background: var(--interactive-accent);
-	color: white;
-	border-color: var(--interactive-accent);
-}
-
-
-
-.def-sidebar-tab-icon svg {
-	width: 16px;
-	height: 16px;
-}
-
 .warning-title {
 	font-weight: 600;
 	margin-bottom: 6px;
@@ -1949,8 +1893,7 @@ h4.with-icon {
 	font-size: 1.4em;
 	font-weight: 600;
     color: var(--text-normal);
-	padding: 5px;
-	margin: 5px;
+	padding: 8px 12px;
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -1997,6 +1940,12 @@ h4.with-icon {
 	box-shadow: 1px 2px rgba(0,0,0,0.2);
 }
 
+.def-usage-card.active {
+	border-color: var(--text-accent);
+	box-shadow: 0 0 0 2px var(--background-modifier-border);
+	background: var(--background-modifier-hover);
+}
+
 .def-usage-header {
 	display: flex;
 	align-items: center;
@@ -2029,7 +1978,7 @@ h4.with-icon {
 /* Sidebar search button positioning */
 .def-card-search-btn {
 	position: absolute;
-	bottom: 20px;
+	bottom: 18px;
 	right: 15px;
 	display: inline-flex;
 	align-items: center;

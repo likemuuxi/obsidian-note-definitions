@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, TFile, setIcon, MarkdownView, Notice, Menu, MarkdownRenderer } from "obsidian";
+import { WorkspaceLeaf, TFile, setIcon, MarkdownView, Notice, MarkdownRenderer, DropdownComponent } from "obsidian";
 import { DefinitionManagerView } from "src/editor/definition-manager-view";
 import { ViewMode } from "src/settings";
 import { getDefFileManager } from "src/core/def-file-manager";
@@ -14,6 +14,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 	private activeFile: TFile | null = null;
 	private searchResults: { file: TFile; def: Definition; matches: Array<{ line: number; text: string }> } | null = null;
 	private sidebarScrollTop: number | null = null;
+	private selectedSearchMatchIndex: number | null = null;
 
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
@@ -55,7 +56,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		if (file) {
 			const content = (await this.app.vault.read(file)).toLowerCase();
-			const matchedDefs = new Map<string, Definition & { sourceFile: TFile; fileType: DefFileType; filePath: string }>();
+			const matchedDefs = new Map<string, Definition & { sourceFile: TFile; fileType: DefFileType; filePath: string; occurrenceCount: number }>();
 			const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 			defManager.globalDefs.getAllKeys().forEach(rawKey => {
@@ -63,8 +64,9 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 				if (!key) return;
 
 				// Match as a standalone word/phrase to avoid substring collisions
-				const pattern = new RegExp(`(^|\\W)${escapeRegExp(key)}(\\W|$)`);
-				if (!pattern.test(content)) return;
+				const pattern = new RegExp(`(^|\\W)${escapeRegExp(key)}(\\W|$)`, "g");
+				const matchCount = content.match(pattern)?.length ?? 0;
+				if (matchCount === 0) return;
 
 				const def = defManager.globalDefs.get(key);
 				if (!def || !def.file) return;
@@ -76,7 +78,8 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 					...def,
 					sourceFile: def.file,
 					fileType,
-					filePath: def.file.path
+					filePath: def.file.path,
+					occurrenceCount: matchCount
 				});
 			});
 
@@ -92,7 +95,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 	}
 
 	// 全新侧边栏布局：显示当前文件的定义列表 + 搜索/排序/新增
-	protected createDefinitionCard(container: Element, def: Definition & { sourceFile: TFile, filePath: string }): HTMLElement {
+	protected createDefinitionCard(container: Element, def: Definition & { sourceFile: TFile, filePath: string, occurrenceCount: number }): HTMLElement {
 		const card = super.createDefinitionCard(container, def);
 
 		// 文内搜索入口（仅侧边栏）
@@ -133,6 +136,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		});
 
 		this.searchResults = { file: activeFile, def, matches };
+		this.selectedSearchMatchIndex = null;
 		this.render();
 	}
 
@@ -148,6 +152,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		this.setIconWithLabel(backBtn, "arrow-left", "Back");
 		backBtn.addEventListener("click", () => {
 			this.searchResults = null;
+			this.selectedSearchMatchIndex = null;
 			this.render();
 		});
 
@@ -168,9 +173,12 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			.filter(Boolean)
 			.map(s => s.toLowerCase());
 
-		this.searchResults.matches.forEach(match => {
+		this.searchResults.matches.forEach((match, index) => {
 			const item = list.createEl("li", { cls: "def-usage-item" });
 			const card = item.createDiv({ cls: "def-usage-card" });
+			if (index === this.selectedSearchMatchIndex) {
+				card.addClass("active");
+			}
 
 			const header = card.createDiv({ cls: "def-usage-header" });
 
@@ -191,6 +199,10 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 				);
 
 			card.addEventListener("click", async () => {
+				list.querySelectorAll(".def-usage-card.active").forEach(el => el.removeClass("active"));
+				card.addClass("active");
+				this.selectedSearchMatchIndex = index;
+
 				if (!this.searchResults) return;
 				const file = this.searchResults.file;
 				const leaf = this.app.workspace.getLeaf(false);
@@ -199,6 +211,9 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 					await (leaf as any).openFile(file);
 				}
 				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (view?.getMode() === "preview") {
+					await view.leaf?.setViewState({ type: "markdown", state: { mode: "source" } });
+				}
 				const editor = view?.editor;
 				if (editor) {
 					const len = this.safeLineLength(editor, match.line);
@@ -225,6 +240,17 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		}
 	}
 
+	protected applyFilters() {
+		super.applyFilters();
+
+		if (this.sortBy === 'occurrences') {
+			this.filteredDefinitions.sort((a: any, b: any) => {
+				const comparison = (a.occurrenceCount ?? 0) - (b.occurrenceCount ?? 0);
+				return this.sortOrder === 'desc' ? -comparison : comparison;
+			});
+		}
+	}
+
 	protected render() {
 		const container = this.containerEl.children[1];
 		container.empty();
@@ -246,13 +272,22 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		const topControls = container.createDiv({ cls: "def-sidebar-top" });
 
 		const toolbar = topControls.createDiv({ cls: "def-sidebar-toolbar" });
+
+		// 直接展示搜索框（使用 Obsidian 原生样式）
+		const searchContainer = toolbar.createDiv({ cls: "search-input-container def-sidebar-search" });
+		const searchInput = searchContainer.createEl("input", {
+			cls: "search-input",
+			type: "search",
+			attr: { placeholder: "搜索定义..." }
+		});
+		searchInput.value = this.searchTerm;
+		searchInput.addEventListener('input', (e) => {
+			this.searchTerm = (e.target as HTMLInputElement).value;
+			this.applyFilters();
+			this.updateDefinitionList();
+		});
+
 		const actions = toolbar.createDiv({ cls: "def-sidebar-actions" });
-
-		const searchBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
-		this.setIconWithLabel(searchBtn, "search");
-
-		const sortBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
-		this.setIconWithLabel(sortBtn, "sliders");
 
 		let expandAll = false;
 		const toggleAllBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
@@ -265,129 +300,56 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		};
 		updateToggleBtn();
 
-		// const addBtn = actions.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-primary icon-only" });
-		// this.setIconWithLabel(addBtn, "plus");
-		// addBtn.addEventListener('click', () => {
-		// 	const modal = new AddDefinitionModal(this.app);
-		// 	modal.open();
-		// });
+		const sortOptions = [
+			{ key: 'name', order: 'asc', label: '文件名 (A-Z)' },
+			{ key: 'name', order: 'desc', label: '文件名 (Z-A)' },
+			{ key: 'occurrences', order: 'desc', label: '出现次数（多到少）' },
+			{ key: 'occurrences', order: 'asc', label: '出现次数（少到多）' },
+			{ key: 'modified', order: 'desc', label: '编辑时间（从新到旧）' },
+			{ key: 'modified', order: 'asc', label: '编辑时间（从旧到新）' },
+			{ key: 'created', order: 'desc', label: '创建时间（从新到旧）' },
+			{ key: 'created', order: 'asc', label: '创建时间（从旧到新）' },
+		];
 
-		// 展开面板：搜索
-		const searchPanel = topControls.createDiv({ cls: "sidebar-panel" });
-		const searchInput = searchPanel.createEl("input", {
-			cls: "def-manager-search",
-			attr: { placeholder: "Search..." }
-		});
-		searchInput.value = this.searchTerm;
-		searchInput.addEventListener('input', (e) => {
-			this.searchTerm = (e.target as HTMLInputElement).value;
-			this.applyFilters();
-			this.updateDefinitionList();
-		});
-
-		let searchOpen = false;
-		let sortOpen = false;
-
-		const togglePanel = (panel: HTMLElement, open: boolean) => {
-			panel.toggleClass("open", open);
-		};
-
-		// 展开面板：排序 + 类型切换
-		const sortPanel = topControls.createDiv({ cls: "sidebar-panel" });
-		const sortRow = sortPanel.createDiv({ cls: "def-sort-row" });
-
+		const sortRow = topControls.createDiv({ cls: "def-sort-row" });
 		const sortControls = sortRow.createDiv({ cls: "def-sort-controls" });
 
-		const typeBtn = sortControls.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-select" });
 		const typeLabels: Record<string, string> = {
-			all: "All Types",
+			all: "All",
 			[DefFileType.Atomic]: "Atomic",
 			[DefFileType.Consolidated]: "Consolidated",
 		};
-		const updateTypeBtn = () => {
-			typeBtn.setText(typeLabels[this.selectedFileType] ?? "Type");
-		};
-		updateTypeBtn();
-		typeBtn.addEventListener('click', (evt) => {
-			const menu = new Menu();
-			[
-				{ key: 'all', label: typeLabels['all'] },
-				{ key: DefFileType.Atomic, label: typeLabels[DefFileType.Atomic] },
-				{ key: DefFileType.Consolidated, label: typeLabels[DefFileType.Consolidated] },
-			].forEach(item => {
-				menu.addItem(mi => {
-					mi.setTitle(item.label);
-					if (item.key === this.selectedFileType) mi.setIcon("check");
-					mi.onClick(() => {
-						if (this.selectedFileType === item.key) return;
-						this.selectedFileType = item.key;
-						this.selectedSourceFile = 'all';
-						this.applyFilters();
-						this.updateDefinitionList();
-						updateTypeBtn();
-					});
-				});
-			});
-			menu.showAtPosition({ x: evt.clientX, y: evt.clientY });
+		const typeDropdown = new DropdownComponent(sortControls);
+		typeDropdown.selectEl.addClass("def-type-dropdown");
+		Object.entries(typeLabels).forEach(([key, label]) => {
+			typeDropdown.addOption(key, label);
 		});
-
-		const sortBtnSelect = sortControls.createEl("button", { cls: "def-toolbar-btn def-toolbar-btn-select" });
-		const sortLabels: Record<string, string> = {
-			name: "Name",
-			created: "Created",
-			modified: "Modified",
-		};
-		const updateSortBtn = () => {
-			sortBtnSelect.setText(sortLabels[this.sortBy] ?? "Sort");
-		};
-		updateSortBtn();
-		sortBtnSelect.addEventListener('click', (evt) => {
-			const menu = new Menu();
-			[
-				{ key: 'name', label: sortLabels.name },
-				{ key: 'created', label: sortLabels.created },
-				{ key: 'modified', label: sortLabels.modified },
-			].forEach(item => {
-				menu.addItem(mi => {
-					mi.setTitle(item.label);
-					if (item.key === this.sortBy) mi.setIcon("check");
-					mi.onClick(() => {
-						if (this.sortBy === item.key) return;
-						this.sortBy = item.key;
-						this.applyFilters();
-						this.updateDefinitionList();
-						updateSortBtn();
-					});
-				});
-			});
-			menu.showAtPosition({ x: evt.clientX, y: evt.clientY });
-		});
-
-		const orderBtn = sortControls.createEl("button", { cls: "def-toolbar-btn" });
-		const updateOrderBtn = () => {
-			this.setIconWithLabel(orderBtn, this.sortOrder === 'asc' ? "arrow-up" : "arrow-down");
-		};
-		updateOrderBtn();
-		orderBtn.addEventListener('click', () => {
-			this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
-			updateOrderBtn();
-			this.applyFilters();
+		typeDropdown.setValue(this.selectedFileType ?? 'all');
+		typeDropdown.onChange(async (value) => {
+			if (this.selectedFileType === value) return;
+			this.selectedFileType = value;
+			this.selectedSourceFile = 'all';
+			await this.loadDefinitions();
 			this.updateDefinitionList();
 		});
 
-		searchBtn.addEventListener('click', () => {
-			searchOpen = !searchOpen;
-			if (searchOpen) sortOpen = false;
-			togglePanel(searchPanel, searchOpen);
-			togglePanel(sortPanel, sortOpen);
-			if (searchOpen) searchInput.focus();
+		const sortDropdown = new DropdownComponent(sortControls);
+		sortDropdown.selectEl.addClass("def-sort-dropdown");
+		sortOptions.forEach(item => {
+			sortDropdown.addOption(`${item.key}:${item.order}`, item.label);
 		});
-
-		sortBtn.addEventListener('click', () => {
-			sortOpen = !sortOpen;
-			if (sortOpen) searchOpen = false;
-			togglePanel(sortPanel, sortOpen);
-			togglePanel(searchPanel, searchOpen);
+		const setSortDropdown = () => {
+			const current = `${this.sortBy}:${this.sortOrder}`;
+			const fallback = 'name:asc';
+			sortDropdown.setValue(sortOptions.some(o => `${o.key}:${o.order}` === current) ? current : fallback);
+		};
+		setSortDropdown();
+		sortDropdown.onChange((value) => {
+			const [key, order] = value.split(':');
+			this.sortBy = key;
+			this.sortOrder = order;
+			this.applyFilters();
+			this.updateDefinitionList();
 		});
 
 		const toggleDefinitions = (expand: boolean) => {

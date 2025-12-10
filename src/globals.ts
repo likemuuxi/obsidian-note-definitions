@@ -39,7 +39,7 @@ export function injectGlobals(settings: Settings, app: App, targetWindow: Window
 			const defPopover = getDefinitionPopover();
 			let isOpen = false;
 
-			if (Platform.isMobile) {
+			if (Platform.isPhone) {
 				const centerCoords = {
 					left: window.innerWidth / 2,
 					right: window.innerWidth / 2,
