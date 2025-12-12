@@ -42,9 +42,9 @@ export default class NoteDefinition extends Plugin {
 			await this.flashcardManager.loadData(data);
 		}
 
-			this.registerEvent(this.app.workspace.on('window-open', (win: WorkspaceWindow, newWindow: Window) => {
-				injectGlobals(settings, this.app, newWindow);
-			}))
+		this.registerEvent(this.app.workspace.on('window-open', (win: WorkspaceWindow, newWindow: Window) => {
+			injectGlobals(settings, this.app, newWindow);
+		}))
 
 		logDebug("Load note definition plugin");
 
@@ -84,7 +84,7 @@ export default class NoteDefinition extends Plugin {
 		this.fileExplorerDeco.run();
 
 		// 在依赖初始化完成后再激活侧边栏，避免空内容
-		this.activateDefinitionSidebarView();
+		// this.activateDefinitionSidebarView();
 	}
 
 	async saveSettings() {
@@ -411,20 +411,26 @@ export default class NoteDefinition extends Plugin {
 	async activateDefinitionSidebarView() {
 		const { workspace } = this.app;
 
-		let leaf = workspace.getLeavesOfType(DEFINITION_SIDEBAR_VIEW_TYPE)[0] as WorkspaceLeaf | null;;
-
-		if (!leaf) {
-			leaf = workspace.getRightLeaf(false);
-			if (!leaf) {
-				return;
-			}
-			await leaf.setViewState({
-				type: DEFINITION_SIDEBAR_VIEW_TYPE,
-				active: true,
-			});
+		// Ensure workspace layout exists before requesting side leaf
+		if (!workspace.layoutReady) {
+			await new Promise<void>((resolve) => workspace.onLayoutReady(resolve));
+		}
+		const existingLeaf = workspace.getLeavesOfType(DEFINITION_SIDEBAR_VIEW_TYPE)[0] as WorkspaceLeaf | null;
+		if (existingLeaf) {
+			workspace.revealLeaf(existingLeaf);
+			return;
 		}
 
-		// 激活视图
+		const leaf = workspace.getRightLeaf(false);
+		if (!leaf) {
+			return;
+		}
+
+		await leaf.setViewState({
+			type: DEFINITION_SIDEBAR_VIEW_TYPE,
+			active: true,
+		});
+
 		workspace.revealLeaf(leaf);
 	}
 

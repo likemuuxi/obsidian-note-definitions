@@ -868,7 +868,7 @@ export class DefinitionManagerView extends ItemView {
         return card;
     }
 
-    	// 使用现有的EditDefinitionModal
+	// 使用现有的EditDefinitionModal
 	private async editDefinition(def: DefinitionWithSource) {
 		console.log('editDefinition called for:', def.word);
 		try {
@@ -1200,7 +1200,6 @@ export class DefinitionManagerView extends ItemView {
         }
     }
 
-
     private async performBatchDelete(option: string, optionsContainer: Element) {
         let defsToDelete: DefinitionWithSource[] = [];
 
@@ -1293,7 +1292,7 @@ export class DefinitionManagerView extends ItemView {
             new Notice(`Deleted ${successCount} definitions, ${errorCount} failed`);
         }
 
-        		// 刷新列表
+		// 刷新列表
 		await this.loadDefinitions();
 		this.updateDefinitionList();
 	}
