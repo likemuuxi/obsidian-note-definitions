@@ -188,8 +188,16 @@
 	text-decoration: underline var(--color-yellow) dotted;
 	-webkit-text-decoration: underline var(--color-yellow) dotted;
 } */
+ 
+ /* [data-style="underline"] */
 .def-decoration {
 	border-bottom: 2px dashed var(--color-grey, var(--text-muted));
+}
+
+/* 波浪线样式 */
+.def-decoration[data-style="wavy"] {
+    text-decoration: wavy underline var(--color-yellow, var(--text-muted));
+    text-decoration-thickness: 1px;
 }
 
 .def-decoration:hover {
@@ -459,12 +467,14 @@ h4.with-icon {
 	padding: 16px;
 	background: var(--background-secondary);
 	border-radius: 10px;
-	margin-bottom: 16px;
+	border: 1px solid var(--background-modifier-border);
+	margin-bottom: 8px;
 	align-items: center;
 	width: 100%;
 	box-sizing: border-box;
 	overflow-x: hidden;
 }
+
 
 .def-manager-toolbar-group {
 	display: flex;
@@ -489,11 +499,6 @@ h4.with-icon {
 	flex-wrap: wrap;
 }
 
-.workspace-split.mod-left-split .def-manager-search,
-.workspace-split.mod-right-split .def-manager-search {
-	min-width: 100px;
-}
-
 @media (max-width: 768px) {
 	.def-manager-toolbar {
 		flex-direction: column;
@@ -504,21 +509,6 @@ h4.with-icon {
 	.def-manager-toolbar-group {
 		justify-content: space-between;
 	}
-}
-
-.def-manager-search {
-	flex: 1;
-	min-width: 120px;
-	padding: 10px 14px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 8px;
-	background: var(--background-primary);
-	transition: border-color 0.2s ease;
-}
-
-.def-manager-search:focus {
-	border-color: var(--interactive-accent);
-	outline: none;
 }
 
 .def-manager-select {
@@ -605,9 +595,22 @@ h4.with-icon {
 	width: 100%;
 	box-sizing: border-box;
 	min-height: 200px;
+	background: var(--background-secondary);
+	border-radius: 10px;
+	border: 1px solid var(--background-modifier-border);
+	padding: 16px;
 }
 
+.def-sidebar-list {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
 
+	position: relative;
+	width: 100%;
+	box-sizing: border-box;
+	min-height: 200px;
+}
 
 /* 小屏幕：调整间距和字体 */
 @media (max-width: 768px) {
@@ -891,7 +894,8 @@ h4.with-icon {
 	border-color: var(--background-modifier-border);
 }
 
-.def-sidebar-search {
+.def-sidebar-search,
+.def-manager-search {
 	flex: 1;
 }
 
@@ -1572,14 +1576,6 @@ h4.with-icon {
 	min-width: 80px;
 	font-size: 12px;
 	padding: 8px 12px;
-}
-
-/* 专门针对侧边栏的样式 */
-.workspace-split.mod-left-split .mode-buttons-container,
-.workspace-split.mod-right-split .mode-buttons-container {
-	flex-direction: column;
-	gap: 8px;
-	padding: 12px;
 }
 
 .workspace-split.mod-left-split .mode-btn,

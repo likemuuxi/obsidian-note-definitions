@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, Setting, TFile, MarkdownRenderer, Component, Modal, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, Notice, Setting, TFile, MarkdownRenderer, Component, Modal, setIcon, DropdownComponent } from "obsidian";
 import { getDefFileManager } from "src/core/def-file-manager";
 import { DefFileUpdater } from "src/core/def-file-updater";
 import { DefFileType } from "src/core/file-type";
@@ -46,6 +46,13 @@ export class DefinitionManagerView extends ItemView {
 	protected isViewActive: boolean = false;
 	protected managerOnly: boolean = false;
 	protected allowRandomStyle: boolean = true;
+	private relayoutTimeout?: number;
+
+    // Lazy loading
+    protected page: number = 1;
+    protected pageSize: number = 20;
+    protected observer: IntersectionObserver | null = null;
+    protected loadingSentinel: HTMLElement | null = null;
 
     constructor(leaf: WorkspaceLeaf) {
         super(leaf);
@@ -130,6 +137,10 @@ export class DefinitionManagerView extends ItemView {
             clearTimeout(this.resizeTimeout);
             this.resizeTimeout = undefined;
         }
+		if (this.relayoutTimeout) {
+			window.clearTimeout(this.relayoutTimeout);
+			this.relayoutTimeout = undefined;
+		}
 
         // 重置状态
         this.isViewActive = false;
@@ -163,20 +174,33 @@ export class DefinitionManagerView extends ItemView {
         this.applyFilters();
     }
 
+	private getSearchTokens(term: string): string[] {
+		return term
+			.toLowerCase()
+			.split(/\s+/)
+			.map(t => t.trim())
+			.filter(Boolean);
+	}
+
+	private matchesSearch(def: DefinitionWithSource, term: string): boolean {
+		const tokens = this.getSearchTokens(term);
+		if (tokens.length === 0) return true;
+
+		const word = def.word.toLowerCase();
+		const definition = def.definition.toLowerCase();
+		const aliases = (def.aliases || []).map(a => String(a).toLowerCase());
+
+		return tokens.every(token =>
+			word.includes(token) ||
+			definition.includes(token) ||
+			aliases.some(a => a.includes(token))
+		);
+	}
+
     protected applyFilters() {
         this.filteredDefinitions = this.definitions.filter(def => {
             // 搜索过滤
-            if (this.searchTerm) {
-                const searchLower = this.searchTerm.toLowerCase();
-                const matchesWord = def.word.toLowerCase().includes(searchLower);
-                const matchesDefinition = def.definition.toLowerCase().includes(searchLower);
-                const matchesAliases = def.aliases.some(alias =>
-                    typeof alias === 'string' && alias.toLowerCase().includes(searchLower)
-                );
-                if (!matchesWord && !matchesDefinition && !matchesAliases) {
-                    return false;
-                }
-            }
+            if (this.searchTerm && !this.matchesSearch(def, this.searchTerm)) return false;
 
             // 文件类型过滤
             if (this.selectedFileType !== 'all' && def.fileType !== this.selectedFileType) {
@@ -209,9 +233,11 @@ export class DefinitionManagerView extends ItemView {
 
             switch (this.sortBy) {
                 case 'name':
-                    // 按定义的词语名称排序
-                    comparison = a.word.localeCompare(b.word);
+                    comparison = a.sourceFile.name.localeCompare(b.sourceFile.name) || a.word.localeCompare(b.word);
                     break;
+				case 'occurrences':
+					comparison = ((a as any).occurrenceCount ?? 0) - ((b as any).occurrenceCount ?? 0);
+					break;
                 case 'created':
                     // 按文件创建时间排序
                     comparison = a.sourceFile.stat.ctime - b.sourceFile.stat.ctime;
@@ -226,6 +252,52 @@ export class DefinitionManagerView extends ItemView {
         });
     }
 
+	private escapeHtml(text: string): string {
+		return text
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;")
+			.replace(/'/g, "&#39;");
+	}
+
+	private highlightText(text: string, term: string): string {
+		const tokens = this.getSearchTokens(term);
+		if (tokens.length === 0) return this.escapeHtml(text);
+
+		const escapedTokens = tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+		const regex = new RegExp(`(${escapedTokens.join("|")})`, "gi");
+
+		let result = "";
+		let lastIndex = 0;
+		for (const match of text.matchAll(regex)) {
+			const index = match.index ?? 0;
+			const matched = match[0] ?? "";
+			result += this.escapeHtml(text.slice(lastIndex, index));
+			result += `<mark>${this.escapeHtml(matched)}</mark>`;
+			lastIndex = index + matched.length;
+		}
+		result += this.escapeHtml(text.slice(lastIndex));
+		return result;
+	}
+
+	private scheduleRelayout() {
+		if (this.managerOnly) return;
+		if (this.currentViewMode !== ViewMode.Manager) return;
+
+		if (this.relayoutTimeout) window.clearTimeout(this.relayoutTimeout);
+		this.relayoutTimeout = window.setTimeout(() => {
+			const list = this.containerEl.querySelector(".def-manager-list") as HTMLElement | null;
+			if (!list) return;
+			const cards = Array.from(list.querySelectorAll<HTMLElement>(".def-card"));
+			if (cards.length === 0) return;
+
+			this.waitForCardsToRender(cards).then(() => {
+				this.layoutMasonry(list, cards);
+			});
+		}, 0);
+	}
+
     	protected render() {
 		const container = this.containerEl.children[1];
 		container.empty();
@@ -237,22 +309,25 @@ export class DefinitionManagerView extends ItemView {
 		}
 		
 		// 创建模式切换按钮
-		if (!this.managerOnly) {
-			this.createModeButtons(container);
-		}
-		
+		// if (!this.managerOnly) {
+		// 	this.createModeButtons(container);
+		// }
+
+		// Definition Manager模式
+		this.createManagerToolbar(container);
+		this.createDefinitionList(container);
 		// 根据当前模式渲染内容
-		if (this.currentViewMode === ViewMode.Manager) {
-			// Definition Manager模式
-			this.createManagerToolbar(container);
-			this.createDefinitionList(container);
-		} else if (this.currentViewMode === ViewMode.Statistics) {
-			// Statistics Dashboard模式
-			this.renderStatisticsView(container);
-		} else {
-			// 闪卡模式（包含Browse Mode和Flashcard Study）
-			this.renderFlashcardView(container);
-		}
+		// if (this.currentViewMode === ViewMode.Manager) {
+		// 	// Definition Manager模式
+		// 	this.createManagerToolbar(container);
+		// 	this.createDefinitionList(container);
+		// } else if (this.currentViewMode === ViewMode.Statistics) {
+		// 	// Statistics Dashboard模式
+		// 	this.renderStatisticsView(container);
+		// } else {
+		// 	// 闪卡模式（包含Browse Mode和Flashcard Study）
+		// 	this.renderFlashcardView(container);
+		// }
 	}
 
 	// 创建模式切换按钮
@@ -295,137 +370,161 @@ export class DefinitionManagerView extends ItemView {
 
 	// 创建管理器工具栏（简化版，只包含管理器功能）
 	protected createManagerToolbar(container: Element) {
-		const toolbar = container.createDiv({ cls: "def-manager-toolbar" });
+		const topControls = container.createDiv({ cls: "def-manager-top" });
+		const toolbar = topControls.createDiv({ cls: "def-manager-toolbar" });
 
-		// 搜索框
-		const searchGroup = toolbar.createDiv({ cls: "def-manager-toolbar-group" });
-		searchGroup.createSpan({ text: "Search:" });
-		const searchInput = searchGroup.createEl("input", {
-			cls: "def-manager-search",
-			attr: { placeholder: "Search words, definitions, or aliases..." }
+		/* 1. Search */
+		const searchContainer = toolbar.createDiv({ cls: "search-input-container def-manager-search" });
+		const searchInput = searchContainer.createEl("input", {
+			cls: "search-input",
+			type: "search",
+			attr: { placeholder: "搜索定义..." }
 		});
 		searchInput.value = this.searchTerm;
-		searchInput.addEventListener('input', (e) => {
+		searchInput.addEventListener("input", (e) => {
 			this.searchTerm = (e.target as HTMLInputElement).value;
 			this.applyFilters();
 			this.updateDefinitionList();
 		});
 
-		// 文件类型筛选
-		const typeGroup = toolbar.createDiv({ cls: "def-manager-toolbar-group" });
-		typeGroup.createSpan({ text: "Type:" });
-		const typeSelect = typeGroup.createEl("select", { cls: "def-manager-select" });
-		typeSelect.innerHTML = `
-			<option value="all">All Types</option>
-			<option value="${DefFileType.Consolidated}">Consolidated</option>
-			<option value="${DefFileType.Atomic}">Atomic</option>
-		`;
-		typeSelect.value = this.selectedFileType;
-		typeSelect.addEventListener('change', async (e) => {
-			this.selectedFileType = (e.target as HTMLSelectElement).value;
-			this.selectedSourceFile = 'all'; // 重置源文件选择
-			await this.loadDefinitions(); // 自动刷新数据
-			this.updateDefinitionList();
-			this.updateFileSelect(fileSelect); // 更新文件选择器
-		});
+		/* 2. Type dropdown */
+		const sortControls = toolbar.createDiv({ cls: "def-sort-controls" });
 
-		// 源文件/文件夹筛选
-		const fileGroup = toolbar.createDiv({ cls: "def-manager-toolbar-group" });
-		const fileLabel = fileGroup.createSpan({ text: "Filter:" });
+		const typeLabels: Record<string, string> = {
+			all: "All",
+			[DefFileType.Atomic]: "Atomic",
+			[DefFileType.Consolidated]: "Consolidated",
+		};
+
+		const typeDropdown = new DropdownComponent(sortControls);
+		typeDropdown.selectEl.addClass("def-type-dropdown");
+		Object.entries(typeLabels).forEach(([key, label]) => {
+			typeDropdown.addOption(key, label);
+		});
+		typeDropdown.setValue(this.selectedFileType ?? "all");
+
+		/* 3. File select */
+		const fileGroup = sortControls.createDiv({ cls: "def-manager-toolbar-group" });
 		const fileSelect = fileGroup.createEl("select", { cls: "def-manager-select" });
 		this.updateFileSelect(fileSelect);
-		fileSelect.addEventListener('change', (e) => {
+		fileSelect.addEventListener("change", (e) => {
 			this.selectedSourceFile = (e.target as HTMLSelectElement).value;
 			this.applyFilters();
 			this.updateDefinitionList();
 		});
 
-		// 排序选项
-		const sortGroup = toolbar.createDiv({ cls: "def-manager-toolbar-group" });
-		sortGroup.createSpan({ text: "Sort:" });
-		const sortSelect = sortGroup.createEl("select", { cls: "def-manager-select" });
-		sortSelect.innerHTML = `
-			<option value="name">Name</option>
-			<option value="created">Created Time</option>
-			<option value="modified">Modified Time</option>
-		`;
-		sortSelect.value = this.sortBy;
-		sortSelect.addEventListener('change', (e) => {
-			this.sortBy = (e.target as HTMLSelectElement).value;
+		typeDropdown.onChange(async (value) => {
+			if (this.selectedFileType === value) return;
+			this.selectedFileType = value;
+			this.selectedSourceFile = "all";
+			await this.loadDefinitions();
+			this.updateDefinitionList();
+			this.updateFileSelect(fileSelect);
+		});
+
+		/* 4. Sort dropdown */
+		const sortOptions = [
+			{ key: "name", order: "asc", label: "文件名 (A-Z)" },
+			{ key: "name", order: "desc", label: "文件名 (Z-A)" },
+			{ key: "occurrences", order: "desc", label: "出现次数（多到少）" },
+			{ key: "occurrences", order: "asc", label: "出现次数（少到多）" },
+			{ key: "modified", order: "desc", label: "编辑时间（从新到旧）" },
+			{ key: "modified", order: "asc", label: "编辑时间（从旧到新）" },
+			{ key: "created", order: "desc", label: "创建时间（从新到旧）" },
+			{ key: "created", order: "asc", label: "创建时间（从旧到新）" },
+		];
+
+		const sortDropdown = new DropdownComponent(sortControls);
+		sortDropdown.selectEl.addClass("def-sort-dropdown");
+		sortOptions.forEach(item => {
+			sortDropdown.addOption(`${item.key}:${item.order}`, item.label);
+		});
+
+		const setSortDropdown = () => {
+			const current = `${this.sortBy}:${this.sortOrder}`;
+			const fallback = "name:asc";
+			sortDropdown.setValue(
+				sortOptions.some(o => `${o.key}:${o.order}` === current) ? current : fallback
+			);
+		};
+		setSortDropdown();
+
+		sortDropdown.onChange((value) => {
+			const [key, order] = value.split(":");
+			this.sortBy = key;
+			this.sortOrder = order;
 			this.applyFilters();
 			this.updateDefinitionList();
 		});
 
-		// 排序方向
-		const orderBtn = sortGroup.createEl("button", {
-			cls: "def-toolbar-btn",
-			text: this.sortOrder === 'asc' ? '↑' : '↓'
-		});
-		orderBtn.addEventListener('click', () => {
-			this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
-			orderBtn.textContent = this.sortOrder === 'asc' ? '↑' : '↓';
-			this.applyFilters();
-			this.updateDefinitionList();
-		});
+		/* 5. Toggle all */
+		const actions = toolbar.createDiv({ cls: "def-sidebar-actions" });
 
-		// 按钮组
-		const buttonGroup = toolbar.createDiv({ cls: "def-manager-toolbar-group" });
-		
-		// 折叠设置开关
-		const truncateGroup = buttonGroup.createDiv({ cls: "def-manager-toolbar-group" });
-		const truncateLabel = truncateGroup.createEl("label", { 
-			cls: "def-truncate-toggle",
-			text: "Truncate long content"
-		});
-		const truncateCheckbox = truncateLabel.createEl("input", { 
-			type: "checkbox"
-		});
-		truncateCheckbox.checked = this.enableTruncation;
-		truncateCheckbox.addEventListener('change', (e) => {
-			this.enableTruncation = (e.target as HTMLInputElement).checked;
-			this.updateDefinitionList();
-		});
+		let expandAll = false;
+		const toggleAllBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
 
+		const updateToggleBtn = () => {
+			const icon = expandAll ? "fold-vertical" : "unfold-vertical";
+			const label = expandAll ? "Collapse all definitions" : "Expand all definitions";
+			this.setIconWithLabel(toggleAllBtn, icon);
+			toggleAllBtn.setAttr("aria-label", label);
+			toggleAllBtn.setAttr("title", label);
+		};
+		updateToggleBtn();
 
+		const toggleDefinitions = (expand: boolean) => {
+			const cards = container.querySelectorAll(".def-card-definition");
+			cards.forEach(defEl => {
+				const isExpanded = (defEl as HTMLElement).getAttribute("data-expanded") === "true";
+				if (expand !== isExpanded) {
+					defEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+				}
+			});
+		};
+
+		toggleAllBtn.addEventListener("click", () => {
+			expandAll = !expandAll;
+			updateToggleBtn();
+			toggleDefinitions(expandAll);
+			this.scheduleRelayout();
+		});
 
 		// 导出按钮
-		const exportBtn = buttonGroup.createEl("button", {
-			cls: "def-toolbar-btn"
-		});
-		this.setIconWithLabel(exportBtn, "upload", "Export");
-		exportBtn.addEventListener('click', async () => {
-			await this.exportDefinitions();
-		});
+		// const exportBtn = toolbar.createEl("button", {
+		// 	cls: "def-toolbar-btn"
+		// });
+		// this.setIconWithLabel(exportBtn, "upload", "Export");
+		// exportBtn.addEventListener('click', async () => {
+		// 	await this.exportDefinitions();
+		// });
 
 		// 批量删除按钮
-		const batchDeleteBtn = buttonGroup.createEl("button", {
-			cls: "def-toolbar-btn def-toolbar-btn-danger"
-		});
-		this.setIconWithLabel(batchDeleteBtn, "trash-2", "Batch Delete");
-		batchDeleteBtn.addEventListener('click', async () => {
-			await this.showBatchDeleteModal();
-		});
+		// const batchDeleteBtn = toolbar.createEl("button", {
+		// 	cls: "def-toolbar-btn def-toolbar-btn-danger"
+		// });
+		// this.setIconWithLabel(batchDeleteBtn, "trash-2");
+		// batchDeleteBtn.addEventListener('click', async () => {
+		// 	await this.showBatchDeleteModal();
+		// });
 	}
-
-    // CSS样式已移动到styles.css文件中
-
-    
 
     private updateFileSelect(fileSelect: HTMLSelectElement) {
         fileSelect.innerHTML = '';
 
         if (this.selectedFileType === 'all') {
             // All Types - 不显示过滤器
-            fileSelect.style.display = 'none';
-            fileSelect.previousElementSibling!.textContent = '';
+            const group = fileSelect.parentElement as HTMLElement | null;
+            if (group) group.style.display = "none";
+            fileSelect.style.display = "none";
             return;
         } else {
-            fileSelect.style.display = 'block';
+            const group = fileSelect.parentElement as HTMLElement | null;
+            if (group) group.style.display = "flex";
+            fileSelect.style.display = "block";
         }
 
         if (this.selectedFileType === DefFileType.Consolidated) {
             // Consolidated类型 - 按文件过滤
-            fileSelect.previousElementSibling!.textContent = 'File:';
             fileSelect.innerHTML = '<option value="all">All Files</option>';
 
             const consolidatedFiles = new Set(
@@ -443,7 +542,6 @@ export class DefinitionManagerView extends ItemView {
             });
         } else if (this.selectedFileType === DefFileType.Atomic) {
             // Atomic类型 - 按文件夹过滤
-            fileSelect.previousElementSibling!.textContent = 'Folder:';
             fileSelect.innerHTML = '<option value="all">All Folders</option>';
 
             const atomicFolders = new Set(
@@ -470,15 +568,27 @@ export class DefinitionManagerView extends ItemView {
     }
 
     protected createDefinitionList(container: Element) {
-        const listContainer = container.createDiv({ cls: "def-manager-list" });
+        const listClass = this.managerOnly ? "def-sidebar-list" : "def-manager-list";
+        const listContainer = container.createDiv({ cls: listClass });
         this.updateDefinitionList(listContainer);
     }
 
-    	protected updateDefinitionList(listContainer?: Element) {
-		const list = listContainer || this.containerEl.querySelector('.def-manager-list');
+	protected createSidebarDefinitionList(container: Element) {
+        const listContainer = container.createDiv({ cls: "def-sidebar-list" });
+        this.updateDefinitionList(listContainer);
+    }
+
+	protected updateDefinitionList(listContainer?: Element) {
+		const list = listContainer || this.containerEl.querySelector(this.managerOnly ? '.def-sidebar-list' : '.def-manager-list');
 		if (!list) return;
 
 		list.empty();
+        
+        if (this.observer) {
+            this.observer.disconnect();
+            this.observer = null;
+        }
+        this.loadingSentinel = null;
 
 		if (this.filteredDefinitions.length === 0) {
 			const empty = list.createDiv({ cls: "def-manager-empty" });
@@ -491,19 +601,68 @@ export class DefinitionManagerView extends ItemView {
 
 		// 只有在管理模式下才执行瀑布流布局
 		if (this.currentViewMode === ViewMode.Manager) {
-			// 创建所有卡片但不设置位置
-			const cards: HTMLElement[] = [];
-			this.filteredDefinitions.forEach(def => {
-				const card = this.createDefinitionCard(list, def);
-				cards.push(card);
-			});
-
-			// 等待所有卡片内容渲染完成后进行瀑布流布局
-			this.waitForCardsToRender(cards).then(() => {
-				this.layoutMasonry(list as HTMLElement, cards);
-			});
+            this.page = 1;
+            this.renderBatch(list as HTMLElement, 0);
 		}
 	}
+
+    protected renderBatch(list: HTMLElement, startIndex: number) {
+        const batch = this.filteredDefinitions.slice(startIndex, startIndex + this.pageSize);
+        const cards: HTMLElement[] = [];
+        
+        batch.forEach(def => {
+            const card = this.createDefinitionCard(list, def);
+            cards.push(card);
+        });
+
+        this.waitForCardsToRender(cards).then(() => {
+            // Re-layout all cards
+            const allCards = Array.from(list.querySelectorAll('.def-card')) as HTMLElement[];
+            this.layoutMasonry(list, allCards);
+            
+            // Setup lazy loading if more items exist
+            if (startIndex + this.pageSize < this.filteredDefinitions.length) {
+                this.setupLazyLoading(list);
+            }
+        });
+    }
+
+    protected setupLazyLoading(list: HTMLElement) {
+        if (this.loadingSentinel) {
+            this.loadingSentinel.remove();
+            this.loadingSentinel = null;
+        }
+        
+        this.loadingSentinel = list.createDiv({ cls: "def-loading-sentinel" });
+        this.loadingSentinel.style.height = "20px";
+        this.loadingSentinel.style.width = "100%";
+        
+        // Position at bottom
+        const currentHeight = parseFloat(list.style.height || "0");
+        this.loadingSentinel.style.position = 'absolute';
+        this.loadingSentinel.style.top = `${currentHeight}px`;
+        list.style.height = `${currentHeight + 40}px`;
+        
+        if (!this.observer) {
+            this.observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting) {
+                    this.loadNextBatch(list);
+                }
+            }, { root: list, rootMargin: '200px' });
+        }
+        
+        this.observer.observe(this.loadingSentinel);
+    }
+
+    protected loadNextBatch(list: HTMLElement) {
+        if (this.observer) {
+            this.observer.disconnect();
+            this.observer = null;
+        }
+        this.page++;
+        const startIndex = (this.page - 1) * this.pageSize;
+        this.renderBatch(list, startIndex);
+    }
 
     // 等待所有卡片渲染完成
     protected async waitForCardsToRender(cards: HTMLElement[]): Promise<void> {
@@ -530,15 +689,18 @@ export class DefinitionManagerView extends ItemView {
         });
     }
 
-    	// 瀑布流布局核心方法
+	// 瀑布流布局核心方法
 	private layoutMasonry(container: HTMLElement, cards: HTMLElement[]) {
 		if (!this.isViewActive || cards.length === 0) return;
 
 		// 计算容器宽度和列数
-		const containerWidth = Math.max(200, container.clientWidth - 32); // 减去padding，确保最小宽度
+		const computed = window.getComputedStyle(container);
+		const paddingLeft = parseFloat(computed.paddingLeft) || 0;
+		const paddingRight = parseFloat(computed.paddingRight) || 0;
+		const paddingTop = parseFloat(computed.paddingTop) || 0;
+		const paddingBottom = parseFloat(computed.paddingBottom) || 0;
+		const containerWidth = Math.max(200, container.clientWidth - paddingLeft - paddingRight);
 		this.calculateColumns(containerWidth);
-
-        		// 移除调试信息
 
         // 初始化列高度数组
         this.columnHeights = new Array(this.columnCount).fill(0);
@@ -555,20 +717,27 @@ export class DefinitionManagerView extends ItemView {
             // 获取当前卡片高度（在相对定位状态下）
             const cardHeight = card.offsetHeight;
 
-            // 切换到绝对定位并设置位置
-            card.style.position = 'absolute';
-            card.style.left = `${x}px`;
-            card.style.top = `${y}px`;
-            card.style.width = `${this.cardWidth}px`;
-            card.style.marginBottom = '0';
+			// 切换到绝对定位并设置位置
+			card.style.position = 'absolute';
+			card.style.left = `${paddingLeft + x}px`;
+			card.style.top = `${paddingTop + y}px`;
+			card.style.width = `${this.cardWidth}px`;
+			card.style.marginBottom = '0';
 
             // 更新列高度
             this.columnHeights[shortestColumnIndex] += cardHeight + this.gap;
         });
 
-        // 设置容器高度
-        const maxHeight = Math.max(...this.columnHeights);
-        container.style.height = `${maxHeight + 20}px`; // 额外添加一些底部间距
+		// 设置容器高度
+		const maxHeight = Math.max(...this.columnHeights);
+		container.style.height = `${maxHeight + paddingTop + paddingBottom}px`;
+
+        // Update sentinel position if exists
+        if (this.loadingSentinel && container.contains(this.loadingSentinel)) {
+             this.loadingSentinel.style.position = 'absolute';
+             this.loadingSentinel.style.top = `${maxHeight + paddingTop}px`;
+             container.style.height = `${maxHeight + paddingTop + paddingBottom + 40}px`;
+        }
 
         // 设置ResizeObserver监听容器大小变化
         this.setupResizeObserver(container, cards);
@@ -715,7 +884,8 @@ export class DefinitionManagerView extends ItemView {
 
         // 卡片头部
         const header = card.createDiv({ cls: "def-card-header" });
-        const wordEl = header.createEl("h3", { cls: "def-card-word", text: def.word });
+        const wordEl = header.createEl("h3", { cls: "def-card-word" });
+		wordEl.innerHTML = this.highlightText(def.word, this.searchTerm);
 
 		// 操作按钮
 		const actions = header.createDiv({ cls: "def-card-actions" });
@@ -735,7 +905,7 @@ export class DefinitionManagerView extends ItemView {
 		const viewBtn = actions.createEl("button", {
 			cls: "def-card-action-btn"
 		});
-		this.setIconWithLabel(viewBtn, "eye");
+		this.setIconWithLabel(viewBtn, "file-symlink");
 		viewBtn.setAttribute("aria-label", "View File");
 		viewBtn.title = "View File";
 		viewBtn.addEventListener('click', () => this.openSourceFile(def));
@@ -759,7 +929,8 @@ export class DefinitionManagerView extends ItemView {
             // 最多显示3个别名，避免卡片过长
             const displayAliases = def.aliases.slice(0, 3);
             displayAliases.forEach(alias => {
-                aliasesContainer.createSpan({ cls: "def-card-alias", text: alias });
+				const aliasEl = aliasesContainer.createSpan({ cls: "def-card-alias" });
+				aliasEl.innerHTML = this.highlightText(String(alias), this.searchTerm);
             });
 
             // 如果有更多别名，显示"+N"
@@ -831,9 +1002,9 @@ export class DefinitionManagerView extends ItemView {
         renderDefinition();
 
         const toggleExpand = () => {
-            if (!this.managerOnly) return;
             expanded = !expanded;
             renderDefinition();
+			this.scheduleRelayout();
         };
 
         if (hasLongContent) {
@@ -845,7 +1016,6 @@ export class DefinitionManagerView extends ItemView {
 
         // Sidebar cards: clicking the card toggles expanded/collapsed to reveal definition
         card.addEventListener('click', (e) => {
-            if (!this.managerOnly) return;
             // avoid double toggle from inner buttons
             if ((e.target as HTMLElement)?.closest(".def-card-action-btn")) return;
             toggleExpand();

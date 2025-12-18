@@ -12,7 +12,14 @@ export const DEFINITION_SIDEBAR_VIEW_TYPE = "definition-sidebar-view";
 export class DefinitionSidebarView extends DefinitionManagerView {
 	protected managerOnly = true;
 	private activeFile: TFile | null = null;
-	private searchResults: { file: TFile; def: Definition; matches: Array<{ line: number; text: string }> } | null = null;
+	private searchResults: {
+		file: TFile;
+		def: Definition;
+		matches: Array<{ line: number; text: string }>;
+		needles: string[];
+		matchRegex: RegExp | null;
+		highlightRegex: RegExp | null;
+	} | null = null;
 	private sidebarScrollTop: number | null = null;
 	private selectedSearchMatchIndex: number | null = null;
 
@@ -125,17 +132,26 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		const content = await this.app.vault.read(activeFile);
 		const lines = content.split(/\r?\n/);
-		const needles = [def.word, ...(def.aliases || [])].filter(Boolean).map(s => s.toLowerCase());
+		const needles = Array.from(
+			new Set([def.word, ...(def.aliases || [])].map(s => s?.trim()).filter(Boolean) as string[])
+		);
+		const patterns = needles
+			.slice()
+			.sort((a, b) => b.length - a.length)
+			.map(n => this.buildNeedlePattern(n));
+		const combinedPattern = patterns.length > 0 ? `(?:${patterns.join("|")})` : "";
+		const matchRegex = combinedPattern ? new RegExp(combinedPattern, "i") : null;
+		const highlightRegex = combinedPattern ? new RegExp(combinedPattern, "gi") : null;
 
 		const matches: Array<{ line: number; text: string }> = [];
 		lines.forEach((line, idx) => {
-			const lower = line.toLowerCase();
-			if (needles.some(n => n && lower.includes(n))) {
+			if (!matchRegex) return;
+			if (matchRegex.test(line)) {
 				matches.push({ line: idx, text: line.trim() || "(blank line)" });
 			}
 		});
 
-		this.searchResults = { file: activeFile, def, matches };
+		this.searchResults = { file: activeFile, def, matches, needles, matchRegex, highlightRegex };
 		this.selectedSearchMatchIndex = null;
 		this.render();
 	}
@@ -143,7 +159,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 	private getSidebarScrollElement(): HTMLElement | null {
 		const listSection = this.containerEl.querySelector('.def-sidebar-list-section') as HTMLElement | null;
 		if (listSection) return listSection;
-		return this.containerEl.querySelector('.def-manager-list') as HTMLElement | null;
+		return this.containerEl.querySelector('.def-sidebar-list') as HTMLElement | null;
 	}
 
 	private renderSearchResults(container: Element) {
@@ -168,10 +184,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		}
 
 		const list = content.createEl("ul", { cls: "def-usage-list" });
-
-		const needles = [this.searchResults.def.word, ...(this.searchResults.def.aliases || [])]
-			.filter(Boolean)
-			.map(s => s.toLowerCase());
+		const highlightRegex = this.searchResults.highlightRegex;
 
 		this.searchResults.matches.forEach((match, index) => {
 			const item = list.createEl("li", { cls: "def-usage-item" });
@@ -192,7 +205,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 				const renderedBody = body.createDiv({ cls: "def-usage-body-md" });
 				MarkdownRenderer.render(
 					this.app,
-					this.highlightNeedles(match.text, needles),
+					this.highlightNeedles(match.text, highlightRegex),
 					renderedBody,
 					this.searchResults?.file.path ?? "",
 					this
@@ -370,7 +383,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		// 列表
 		const listSection = container.createDiv({ cls: "def-sidebar-list-section" });
-		this.createDefinitionList(listSection);
+		this.createSidebarDefinitionList(listSection);
 
 		// 恢复退出搜索时的滚动位置
 		if (this.sidebarScrollTop !== null) {
@@ -384,7 +397,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 	// Sidebar 列表：直接纵向布局，不做瀑布流和随机样式
 	protected updateDefinitionList(listContainer?: Element) {
-		const list = listContainer || this.containerEl.querySelector('.def-manager-list');
+		const list = listContainer || this.containerEl.querySelector('.def-sidebar-list');
 		if (!list) return;
 
 		list.empty();
@@ -412,10 +425,20 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		return "star-list";
 	}
 
-	private highlightNeedles(text: string, needles: string[]): string {
-		if (needles.length === 0) return text;
-		const escaped = needles.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-		const regex = new RegExp(`(${escaped.join("|")})`, "gi");
-		return text.replace(regex, '<mark>$1</mark>');
+	private highlightNeedles(text: string, highlightRegex: RegExp | null): string {
+		if (!highlightRegex) return text;
+		return text.replace(highlightRegex, "<mark>$&</mark>");
+	}
+
+	private buildNeedlePattern(needle: string): string {
+		const escaped = this.escapeRegExp(needle);
+		if (/^[A-Za-z](?:[A-Za-z\s'-]*[A-Za-z])?$/.test(needle)) {
+			return `\\b${escaped}\\b`;
+		}
+		return escaped;
+	}
+
+	private escapeRegExp(value: string): string {
+		return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	}
 }
