@@ -160,9 +160,11 @@ export default class NoteDefinition extends Plugin {
 		this.addCommand({
 			id: "refresh-definitions",
 			name: "Refresh definitions",
-			callback: () => {
+			callback: async () => {
 				this.fileExplorerDeco.run();
-				this.defManager.loadDefinitions();
+				await this.defManager.loadDefinitions();
+				this.updateEditorExts();
+				this.defManager.updateActiveFile();
 				this.refreshOpenDefinitionViews();
 				this.refreshEditorDecorations();
 			}
@@ -220,11 +222,11 @@ export default class NoteDefinition extends Plugin {
 			this.refreshEditorDecorations();
 		}));
 
-			this.registerEvent(this.app.workspace.on(DEFINITIONS_UPDATED_EVENT as any, async () => {
-				this.reloadUpdatedDefinitions();
-				this.refreshOpenDefinitionViews();
-				this.refreshEditorDecorations();
-			}));
+		this.registerEvent(this.app.workspace.on(DEFINITIONS_UPDATED_EVENT as any, async () => {
+			this.reloadUpdatedDefinitions();
+			this.refreshOpenDefinitionViews();
+			this.refreshEditorDecorations();
+		}));
 
 		this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => {
 			const defPopover = getDefinitionPopover();
@@ -238,10 +240,10 @@ export default class NoteDefinition extends Plugin {
 					menu.addItem(item => {
 						item.setTitle("Add definition")
 						item.setIcon("plus")
-						.onClick(() => {
+							.onClick(() => {
 								const addModal = new AddDefinitionModal(this.app);
 								addModal.open(editor.getSelection());
-						});
+							});
 					});
 				}
 				return;
@@ -279,17 +281,17 @@ export default class NoteDefinition extends Plugin {
 
 		this.registerEvent(this.app.metadataCache.on('changed', (file: TFile) => {
 			const currFile = this.app.workspace.getActiveFile();
-			
+
 			if (currFile && currFile.path === file.path) {
 				this.defManager.updateActiveFile();
 
 				let activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 
-				if(activeView) {
+				if (activeView) {
 					// @ts-expect-error, not typed
 					const view = activeView.editor.cm as EditorView;
 					const plugin = view.plugin(definitionMarker);
-					
+
 					if (plugin) {
 						plugin.forceUpdate();
 					}
@@ -443,20 +445,20 @@ export default class NoteDefinition extends Plugin {
 		return new Promise((resolve) => {
 			const modal = new Modal(this.app);
 			modal.setTitle("Confirm the deletion definition");
-			
+
 			const content = modal.contentEl;
-			
+
 			if (def.fileType === DefFileType.Atomic) {
-				content.createEl("p", { 
+				content.createEl("p", {
 					text: "This will delete the entire file.",
 					cls: "mod-warning"
 				});
 			} else {
-				content.createEl("p", { 
+				content.createEl("p", {
 					text: "This will remove this definition from the consolidated file."
 				});
 			}
-			
+
 			const buttonContainer = content.createDiv({
 				cls: "modal-button-container"
 			});
@@ -464,23 +466,23 @@ export default class NoteDefinition extends Plugin {
 			buttonContainer.style.justifyContent = "flex-end";
 			buttonContainer.style.gap = "10px";
 			buttonContainer.style.marginTop = "20px";
-			
+
 			const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
-			const deleteButton = buttonContainer.createEl("button", { 
+			const deleteButton = buttonContainer.createEl("button", {
 				text: "Delete",
 				cls: "mod-warning"
 			});
-			
+
 			cancelButton.addEventListener("click", () => {
 				modal.close();
 				resolve(false);
 			});
-			
+
 			deleteButton.addEventListener("click", () => {
 				modal.close();
 				resolve(true);
 			});
-			
+
 			modal.open();
 		});
 	}

@@ -1,12 +1,12 @@
 import { RangeSetBuilder } from "@codemirror/state";
 import {
-  Decoration,
-  DecorationSet,
-  EditorView,
-  PluginSpec,
-  PluginValue,
-  ViewPlugin,
-  ViewUpdate,
+	Decoration,
+	DecorationSet,
+	EditorView,
+	PluginSpec,
+	PluginValue,
+	ViewPlugin,
+	ViewUpdate,
 } from "@codemirror/view";
 import { logDebug } from "src/util/log";
 import { DEF_DECORATION_CLS, getDecorationAttrs } from "./common";
@@ -41,7 +41,7 @@ export class DefinitionMarker implements PluginValue {
 			const start = performance.now();
 			this.decorations = this.buildDecorations(update.view);
 			const end = performance.now();
-			logDebug(`Marked definitions in ${end-start}ms`)
+			logDebug(`Marked definitions in ${end - start}ms`)
 			return
 		}
 	}
@@ -54,7 +54,7 @@ export class DefinitionMarker implements PluginValue {
 		return;
 	}
 
-	destroy() {}
+	destroy() { }
 
 	buildDecorations(view: EditorView): DecorationSet {
 		const builder = new RangeSetBuilder<Decoration>();

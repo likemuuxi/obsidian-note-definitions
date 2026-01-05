@@ -188,9 +188,10 @@ export class DefManager {
 	// Load all definitions from registered def folder
 	// This will recurse through the def folder, parsing all definition files
 	// Expensive operation so use sparingly
-	loadDefinitions() {
+	async loadDefinitions() {
 		this.reset();
-		this.loadGlobals().then(this.updateActiveFile.bind(this));
+		await this.loadGlobals();
+		this.updateActiveFile();
 	}
 
 	private getDefRepo() {
@@ -323,13 +324,13 @@ export class DefManager {
 		if (!defMap) {
 			return [];
 		}
-		
+
 		// 去重，因为别名也会创建重复的定义条目
 		const uniqueDefs = new Map<string, Definition>();
 		for (const def of defMap.values()) {
 			uniqueDefs.set(def.key, def);
 		}
-		
+
 		return Array.from(uniqueDefs.values());
 	}
 
@@ -337,13 +338,13 @@ export class DefManager {
 	getFileType(file: TFile): DefFileType {
 		const fileCache = this.app.metadataCache.getFileCache(file);
 		const fmFileType = fileCache?.frontmatter?.["def-type"];
-		
+
 		if (fmFileType === DefFileType.Consolidated || fmFileType === "consolidated") {
 			return DefFileType.Consolidated;
 		} else if (fmFileType === DefFileType.Atomic || fmFileType === "atomic") {
 			return DefFileType.Atomic;
 		}
-		
+
 		// 使用默认配置
 		const settings = window.NoteDefinition.settings;
 		const defaultType = settings?.defFileParseConfig?.defaultFileType || DefFileType.Consolidated;
