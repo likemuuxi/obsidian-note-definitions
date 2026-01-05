@@ -288,19 +288,19 @@ export class SettingsTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(containerEl)
-			.setName("Default view mode for Definition Manager")
-			.setDesc("Choose which mode to activate by default when opening the Definition Manager view")
-			.addDropdown(component => {
-				component.addOption('manager', 'Definition Manager');
-				component.addOption('flashcard', 'Flashcard Study');
-				component.addOption('browse', 'Browse Mode');
-				component.setValue(this.settings.defaultViewMode || 'manager');
-				component.onChange(async value => {
-					this.settings.defaultViewMode = value;
-					await this.saveCallback();
-				});
-			});
+		// new Setting(containerEl)
+		// 	.setName("Default view mode for Definition Manager")
+		// 	.setDesc("Choose which mode to activate by default when opening the Definition Manager view")
+		// 	.addDropdown(component => {
+		// 		component.addOption('manager', 'Definition Manager');
+		// 		component.addOption('flashcard', 'Flashcard Study');
+		// 		component.addOption('browse', 'Browse Mode');
+		// 		component.setValue(this.settings.defaultViewMode || 'manager');
+		// 		component.onChange(async value => {
+		// 			this.settings.defaultViewMode = value;
+		// 			await this.saveCallback();
+		// 		});
+		// 	});
 
 		new Setting(containerEl)
 			.setHeading()

@@ -202,14 +202,14 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			fileLabel.textContent = this.searchResults?.file.name ?? "";
 
 			const body = card.createDiv({ cls: "def-usage-body" });
-				const renderedBody = body.createDiv({ cls: "def-usage-body-md" });
-				MarkdownRenderer.render(
-					this.app,
-					this.highlightNeedles(match.text, highlightRegex),
-					renderedBody,
-					this.searchResults?.file.path ?? "",
-					this
-				);
+			const renderedBody = body.createDiv({ cls: "def-usage-body-md" });
+			MarkdownRenderer.render(
+				this.app,
+				this.highlightNeedles(match.text, highlightRegex),
+				renderedBody,
+				this.searchResults?.file.path ?? "",
+				this
+			);
 
 			card.addEventListener("click", async () => {
 				list.querySelectorAll(".def-usage-card.active").forEach(el => el.removeClass("active"));
@@ -221,24 +221,12 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 				const leaf = this.app.workspace.getLeaf(false);
 				if (leaf) {
 					// @ts-ignore openFile exists
-					await (leaf as any).openFile(file);
-				}
-				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (view?.getMode() === "preview") {
-					await view.leaf?.setViewState({ type: "markdown", state: { mode: "source" } });
-				}
-				const editor = view?.editor;
-				if (editor) {
-					const len = this.safeLineLength(editor, match.line);
-					editor.focus();
-					editor.setSelection(
-						{ line: match.line, ch: 0 },
-						{ line: match.line, ch: len }
-					);
-					editor.scrollIntoView(
-						{ from: { line: match.line, ch: 0 }, to: { line: match.line + 1, ch: 0 } },
-						true
-					);
+					await (leaf as any).openFile(file, {
+						eState: {
+							line: match.line,
+							mode: "source"
+						}
+					});
 				}
 			});
 		});
