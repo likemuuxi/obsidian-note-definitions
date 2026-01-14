@@ -21,7 +21,7 @@ export class AIService {
 	// 获取映射的prompt（用于定义生成）
 	getMappedPrompt(fileType: string, path: string): string {
 		let mappedPrompt: string | undefined;
-		
+
 		if (fileType === 'atomic') {
 			// 对于atomic类型，path是文件夹路径
 			mappedPrompt = this.config.folderPromptMap?.[path];
@@ -29,7 +29,7 @@ export class AIService {
 			// 对于consolidated类型，path是文件路径
 			mappedPrompt = this.config.filePromptMap?.[path];
 		}
-		
+
 		// 如果没有找到映射的prompt，使用默认的customPrompt
 		return mappedPrompt || this.config.customPrompt || DEFAULT_DEFINITION_PROMPT;
 	}
@@ -37,7 +37,7 @@ export class AIService {
 	// 获取映射的别名prompt
 	getMappedAliasPrompt(fileType: string, path: string): string {
 		let mappedPrompt: string | undefined;
-		
+
 		if (fileType === 'atomic') {
 			// 对于atomic类型，path是文件夹路径
 			mappedPrompt = this.config.folderAliasPromptMap?.[path];
@@ -45,21 +45,21 @@ export class AIService {
 			// 对于consolidated类型，path是文件路径
 			mappedPrompt = this.config.fileAliasPromptMap?.[path];
 		}
-		
+
 		// 如果没有找到映射的prompt，使用默认的customAliasPrompt
 		return mappedPrompt || this.config.customAliasPrompt || DEFAULT_ALIAS_PROMPT;
 	}
 
 	private generatePrompt(word: string, fileType?: string, path?: string): string {
 		let customPrompt: string;
-		
+
 		// 如果提供了fileType和path，尝试获取映射的prompt
 		if (fileType && path) {
 			customPrompt = this.getMappedPrompt(fileType, path);
 		} else {
 			customPrompt = this.config.customPrompt || DEFAULT_DEFINITION_PROMPT;
 		}
-		
+
 		// 如果prompt中包含{word}占位符，则替换它
 		if (customPrompt.includes('{word}')) {
 			return customPrompt.replace(/\{word\}/g, word);
@@ -71,14 +71,14 @@ export class AIService {
 
 	private generateAliasPrompt(word: string, fileType?: string, path?: string): string {
 		let customPrompt: string;
-		
+
 		// 如果提供了fileType和path，尝试获取映射的别名prompt
 		if (fileType && path) {
 			customPrompt = this.getMappedAliasPrompt(fileType, path);
 		} else {
 			customPrompt = this.config.customAliasPrompt || DEFAULT_ALIAS_PROMPT;
 		}
-		
+
 		// 如果prompt中包含{word}占位符，则替换它
 		if (customPrompt.includes('{word}')) {
 			return customPrompt.replace(/\{word\}/g, word);
@@ -116,7 +116,7 @@ export class AIService {
 				'Authorization': `Bearer ${providerConfig?.apiKey}`,
 				'Content-Type': 'application/json',
 			};
-			
+
 			const promptText = this.generatePrompt(word, fileType, path);
 			requestBody = {
 				model: providerConfig?.model,
@@ -149,7 +149,26 @@ export class AIService {
 		} else if (currentProvider === 'custom' && providerConfig?.baseUrl) {
 
 			const base = this.normalizeBaseUrl(providerConfig.baseUrl);
-			apiUrl = `${base}/v1/chat/completions`;  // 已确保 base 没有重复 v1
+			if (base.endsWith("/chat/completions")) {
+				apiUrl = base;
+			} else {
+				apiUrl = `${base}/v1/chat/completions`;
+			}
+			headers = {
+				'Authorization': `Bearer ${providerConfig?.apiKey}`,
+				'Content-Type': 'application/json',
+			};
+
+			const promptText = this.generatePrompt(word, fileType, path);
+			requestBody = {
+				model: providerConfig?.model,
+				messages: [{ role: 'user', content: promptText }],
+				max_tokens: 2000,
+				temperature: 0.7
+			};
+
+		} else if (currentProvider === 'zhipu') {
+			apiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 			headers = {
 				'Authorization': `Bearer ${providerConfig?.apiKey}`,
 				'Content-Type': 'application/json',
@@ -163,6 +182,12 @@ export class AIService {
 				temperature: 0.7
 			};
 
+			// 强制禁用 Thinking Mode
+			(requestBody as any).extra_body = {
+				chat_template_kwargs: {
+					enable_thinking: false
+				}
+			};
 		} else {
 			throw new Error("无效的API提供商配置");
 		}
@@ -176,25 +201,51 @@ export class AIService {
 			});
 
 			const data = response.json;
-			console.log('AI data 响应数据:', data);
+			// console.log('AI data 响应数据:', JSON.stringify(data, null, 2));
 
-			if (currentProvider === 'openai' || currentProvider === 'custom') {
-				return data?.choices?.[0]?.message?.content?.trim()
-					?? (() => { throw new Error('API 返回格式错误'); })();
+			if (currentProvider === 'openai' || currentProvider === 'custom' || currentProvider === 'zhipu') {
+				if (data?.error) {
+					throw new Error(`API调用失败: ${data.error.message || JSON.stringify(data.error)}`);
+				}
+				const content = data?.choices?.[0]?.message?.content;
+				const reasoningContent = data?.choices?.[0]?.message?.reasoning_content;
+
+				if (content && typeof content === 'string' && content.trim().length > 0) {
+					return content.trim();
+				}
+
+				// 兼容 glm-4.7 等模型，当 content 为空时尝试使用 reasoning_content
+				if (reasoningContent && typeof reasoningContent === 'string' && reasoningContent.trim().length > 0) {
+					console.log('Using reasoning_content as fallback');
+					return reasoningContent.trim();
+				}
+
+				throw new Error(`API 返回格式错误。完整响应: ${JSON.stringify(data)}`);
 			}
 
 			if (currentProvider === 'gemini') {
-				return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-					?? (() => { throw new Error('Gemini API 返回格式错误'); })();
+				if (data?.error) {
+					throw new Error(`Gemini API调用失败: ${data.error.message || JSON.stringify(data.error)}`);
+				}
+				const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+				if (content) {
+					return content.trim();
+				}
+				throw new Error(`Gemini API 返回格式错误。完整响应: ${JSON.stringify(data)}`);
 			}
 
 			if (currentProvider === 'ollama') {
-				return data?.response?.trim()
-					?? (() => { throw new Error('Ollama API 返回格式错误'); })();
+				if (data?.error) {
+					throw new Error(`Ollama API调用失败: ${data.error}`);
+				}
+				const content = data?.response;
+				if (content) {
+					return content.trim();
+				}
+				throw new Error(`Ollama API 返回格式错误。完整响应: ${JSON.stringify(data)}`);
 			}
 
-			throw new Error("未知的API响应格式");
-
+			throw new Error(`未知的API提供商: ${currentProvider}`);
 		} catch (error) {
 			console.error('AI API 调用失败:', error);
 			throw error;
@@ -238,6 +289,23 @@ export class AIService {
 				max_tokens: 100,
 				temperature: 0.3
 			};
+		} else if (currentProvider === 'zhipu') {
+			apiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+			headers = {
+				'Authorization': `Bearer ${providerConfig?.apiKey}`,
+				'Content-Type': 'application/json',
+			};
+			requestBody = {
+				model: providerConfig?.model,
+				messages: [{ role: 'user', content: aliasPrompt }],
+				max_tokens: 100,
+				temperature: 0.3
+			};
+			(requestBody as any).extra_body = {
+				chat_template_kwargs: {
+					enable_thinking: false
+				}
+			};
 		} else if (currentProvider === 'gemini') {
 			apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${providerConfig?.model}:generateContent?key=${providerConfig?.apiKey}`;
 			headers = { 'Content-Type': 'application/json' };
@@ -257,7 +325,11 @@ export class AIService {
 			};
 		} else if (currentProvider === 'custom' && providerConfig?.baseUrl) {
 			const base = this.normalizeBaseUrl(providerConfig.baseUrl);
-			apiUrl = `${base}/v1/chat/completions`;
+			if (base.endsWith("/chat/completions")) {
+				apiUrl = base;
+			} else {
+				apiUrl = `${base}/v1/chat/completions`;
+			}
 			headers = {
 				'Authorization': `Bearer ${providerConfig?.apiKey}`,
 				'Content-Type': 'application/json',
@@ -281,23 +353,40 @@ export class AIService {
 			});
 
 			const data = response.json;
-			console.log('AI data 响应数据:', data);
+			// console.log('AI data 响应数据:', JSON.stringify(data, null, 2));
 
 			let aliasText = '';
 
-			if (currentProvider === 'openai' || currentProvider === 'custom') {
+			if (currentProvider === 'openai' || currentProvider === 'custom' || currentProvider === 'zhipu') {
+				if (data?.error) {
+					throw new Error(`API Error: ${data.error.message || JSON.stringify(data.error)}`);
+				}
 				if (data.choices?.[0]?.message) {
-					aliasText = data.choices[0].message.content.trim();
+					const content = data.choices[0].message.content;
+					const reasoningContent = data.choices[0].message.reasoning_content;
+
+					if (content && content.trim()) {
+						aliasText = content.trim();
+					} else if (reasoningContent && reasoningContent.trim()) {
+						// 兼容 glm-4.7 等模型
+						aliasText = reasoningContent.trim();
+					}
 				}
 			} else if (currentProvider === 'gemini') {
+				if (data?.error) {
+					throw new Error(`Gemini API Error: ${data.error.message || JSON.stringify(data.error)}`);
+				}
 				if (data.candidates?.[0]?.content?.parts) {
 					aliasText = data.candidates[0].content.parts[0].text.trim();
 				}
 			} else if (currentProvider === 'ollama') {
+				if (data?.error) {
+					throw new Error(`Ollama API Error: ${data.error}`);
+				}
 				if (data.response) aliasText = data.response.trim();
 			}
 
-			if (!aliasText) throw new Error('AI返回空的别名结果');
+			if (!aliasText) throw new Error(`AI返回空的别名结果。完整响应: ${JSON.stringify(data)}`);
 
 			const aliases = aliasText
 				.split(/[,，、\n]/)

@@ -72,6 +72,7 @@ export interface AIConfig {
 		gemini?: ProviderConfig;
 		ollama?: ProviderConfig;
 		custom?: ProviderConfig;
+		zhipu?: ProviderConfig;
 	};
 	// Prompt映射功能 - 分别存储定义和别名prompt
 	folderPromptMap?: Record<string, string>; // 文件夹路径 -> 定义prompt (for atomic)
@@ -148,6 +149,11 @@ export const DEFAULT_SETTINGS: Partial<Settings> = {
 				apiKey: '',
 				model: 'llama3.2',
 				baseUrl: 'http://localhost:11434'
+			},
+			zhipu: {
+				apiKey: '',
+				model: 'glm-4',
+				baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
 			},
 			custom: {
 				apiKey: '',
@@ -456,6 +462,7 @@ export class SettingsTab extends PluginSettingTab {
 				component.addOption('openai', 'OpenAI');
 				component.addOption('gemini', 'Google Gemini');
 				component.addOption('ollama', 'Local Ollama');
+				component.addOption('zhipu', 'Zhipu AI');
 				component.addOption('custom', 'Custom Provider');
 				component.setValue(this.settings.aiConfig?.currentProvider || 'openai');
 				component.onChange(async value => {
@@ -468,24 +475,25 @@ export class SettingsTab extends PluginSettingTab {
 							providers: {}
 						};
 					}
-					
+
 					// 确保providers对象存在
 					if (!this.settings.aiConfig.providers) {
 						this.settings.aiConfig.providers = {};
 					}
-					
+
 					// 为新选择的提供商初始化默认配置（如果不存在）
 					if (!this.settings.aiConfig.providers[value as keyof typeof this.settings.aiConfig.providers]) {
 						const defaultConfigs = {
 							openai: { apiKey: '', model: 'gpt-3.5-turbo', baseUrl: '' },
 							gemini: { apiKey: '', model: 'gemini-pro', baseUrl: '' },
 							ollama: { apiKey: '', model: 'llama3.2', baseUrl: 'http://localhost:11434' },
-							custom: { apiKey: '', model: '', baseUrl: '' }
+							zhipu: { apiKey: '', model: 'glm-4', baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions' },
+							custom: { apiKey: '', model: '', baseUrl: '' },
 						};
-						this.settings.aiConfig.providers[value as keyof typeof this.settings.aiConfig.providers] = 
+						this.settings.aiConfig.providers[value as keyof typeof this.settings.aiConfig.providers] =
 							defaultConfigs[value as keyof typeof defaultConfigs];
 					}
-					
+
 					// 切换当前提供商
 					this.settings.aiConfig.currentProvider = value;
 
@@ -560,6 +568,8 @@ export class SettingsTab extends PluginSettingTab {
 					placeholder = "gemini-pro, gemini-pro-vision";
 				} else if (currentProvider === 'ollama') {
 					placeholder = "llama3.2, qwen2.5, mistral";
+				} else if (currentProvider === 'zhipu') {
+					placeholder = "glm-4, glm-4-plus, glm-4-flash";
 				} else {
 					placeholder = "e.g., anthropic/claude-3-haiku, meta-llama/llama-2-70b-chat";
 				}
@@ -591,19 +601,25 @@ export class SettingsTab extends PluginSettingTab {
 		if (currentProvider !== 'ollama') {
 			new Setting(containerEl)
 				.setName("API Key")
-				.setDesc(currentProvider === 'custom'
-					? "Your API key for the custom provider"
-					: currentProvider === 'gemini'
-						? "Your Google AI Studio API key for Gemini models"
-						: "Your OpenAI API key for AI definition generation")
+				.setDesc(
+					currentProvider === 'custom'
+						? "Your API key for the custom provider"
+						: currentProvider === 'gemini'
+							? "Your Google AI Studio API key for Gemini models"
+							: currentProvider === 'zhipu'
+								? "Your Zhipu AI API key (BigModel)"
+								: "Your OpenAI API key for AI definition generation"
+				)
 				.addText(component => {
 					let placeholder: string;
 					if (currentProvider === 'custom') {
 						placeholder = "Your custom API key";
 					} else if (currentProvider === 'gemini') {
 						placeholder = "AIzaSy...";
+					} else if (currentProvider === 'zhipu') {
+						placeholder = "ce5...";
 					} else {
-						placeholder = "sk-...";
+						placeholder = "...";
 					}
 					component.setPlaceholder(placeholder);
 					component.setValue(currentProviderConfig?.apiKey || '');
@@ -655,7 +671,7 @@ export class SettingsTab extends PluginSettingTab {
 			.addButton(component => {
 				component.setButtonText("Manage");
 				component.onClick(() => {
-					this.showPromptEditModal('default', 
+					this.showPromptEditModal('default',
 						this.settings.aiConfig?.customPrompt || DEFAULT_DEFINITION_PROMPT,
 						this.settings.aiConfig?.customAliasPrompt || DEFAULT_ALIAS_PROMPT,
 						async (newPrompt, newAliasPrompt) => {
@@ -770,7 +786,22 @@ export class SettingsTab extends PluginSettingTab {
 				};
 			} else if (provider === "custom") {
 				baseUrl = this.normalizeBaseUrl(baseUrl || "");
-				apiUrl = `${baseUrl}/v1/chat/completions`;
+				if (baseUrl.endsWith("/chat/completions")) {
+					apiUrl = baseUrl;
+				} else {
+					apiUrl = `${baseUrl}/v1/chat/completions`;
+				}
+				headers = {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+				};
+				requestBody = {
+					model: model,
+					messages: [{ role: "user", content: "test" }],
+					max_tokens: 10,
+				};
+			} else if (provider === "zhipu") {
+				apiUrl = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 				headers = {
 					Authorization: `Bearer ${apiKey}`,
 					"Content-Type": "application/json",
@@ -791,11 +822,32 @@ export class SettingsTab extends PluginSettingTab {
 				body: JSON.stringify(requestBody),
 			});
 
-					if (response.status === 200) {
+			const data = response.json;
+			console.log('Test Connection Response:', data);
+
+			if (response.status !== 200) {
+				throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+			}
+
+			// 验证响应格式
+			let validContent = false;
+			if (provider === 'openai' || provider === 'custom') {
+				// 只要有 choices 数组，即使 content 为空(例如因为 max_tokens 限制)，也说明连接和协议是通的
+				if (Array.isArray(data?.choices) && data.choices.length > 0) validContent = true;
+			} else if (provider === 'gemini') {
+				if (Array.isArray(data?.candidates) && data.candidates.length > 0) validContent = true;
+			} else if (provider === 'ollama') {
+				// Ollama 既然返回了 200，且 data 存在，通常 response 字段也会有（可能是空串）
+				if (data !== undefined) validContent = true;
+			} else if (provider === 'zhipu') {
+				if (Array.isArray(data?.choices) && data.choices.length > 0) validContent = true;
+			}
+
+			if (validContent) {
 				notice.hide();
-				new Notice("连接测试成功", 2000);
+				new Notice("连接测试成功：API响应格式正确", 2000);
 			} else {
-				throw new Error(`HTTP ${response.status}`);
+				throw new Error(`API连接成功但返回格式无法解析: ${JSON.stringify(data)}`);
 			}
 		} catch (error: any) {
 			notice.hide();
@@ -962,7 +1014,7 @@ export class SettingsTab extends PluginSettingTab {
 						.map(folder => folder.path)
 						.filter(path => path.length > 0)
 						.sort();
-					
+
 					folders.forEach(folderPath => {
 						component.addOption(folderPath, folderPath);
 					});
