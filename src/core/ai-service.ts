@@ -3,6 +3,9 @@ import { requestUrl } from "obsidian";
 // 从settings.ts导入常量和接口
 import { DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT, AIConfig } from "../settings";
 
+const MAX_TOKENS = 2000;
+const MAX_ALIAS_TOKENS = 100;
+
 export class AIService {
 	private config: AIConfig;
 
@@ -121,7 +124,7 @@ export class AIService {
 			requestBody = {
 				model: providerConfig?.model,
 				messages: [{ role: 'user', content: promptText }],
-				max_tokens: 300,
+				max_tokens: MAX_TOKENS,
 				temperature: 0.7
 			};
 
@@ -131,7 +134,7 @@ export class AIService {
 			headers = { 'Content-Type': 'application/json' };
 			requestBody = {
 				contents: [{ parts: [{ text: this.generatePrompt(word, fileType, path) }] }],
-				generationConfig: { temperature: 0.7, maxOutputTokens: 300 }
+				generationConfig: { temperature: 0.7, maxOutputTokens: MAX_TOKENS }
 			};
 
 		} else if (currentProvider === 'ollama') {
@@ -143,7 +146,7 @@ export class AIService {
 				model: providerConfig?.model,
 				prompt: this.generatePrompt(word, fileType, path),
 				stream: false,
-				options: { temperature: 0.7, num_predict: 300 }
+				options: { temperature: 0.7, num_predict: MAX_TOKENS }
 			};
 
 		} else if (currentProvider === 'custom' && providerConfig?.baseUrl) {
@@ -163,12 +166,12 @@ export class AIService {
 			requestBody = {
 				model: providerConfig?.model,
 				messages: [{ role: 'user', content: promptText }],
-				max_tokens: 2000,
+				max_tokens: MAX_TOKENS,
 				temperature: 0.7
 			};
 
 		} else if (currentProvider === 'zhipu') {
-			apiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+			apiUrl = 'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions';
 			headers = {
 				'Authorization': `Bearer ${providerConfig?.apiKey}`,
 				'Content-Type': 'application/json',
@@ -178,15 +181,13 @@ export class AIService {
 			requestBody = {
 				model: providerConfig?.model,
 				messages: [{ role: 'user', content: promptText }],
-				max_tokens: 300,
+				max_tokens: MAX_TOKENS,
 				temperature: 0.7
 			};
 
 			// 强制禁用 Thinking Mode
-			(requestBody as any).extra_body = {
-				chat_template_kwargs: {
-					enable_thinking: false
-				}
+			(requestBody as any).thinking = {
+				type: "disabled"
 			};
 		} else {
 			throw new Error("无效的API提供商配置");
@@ -286,11 +287,11 @@ export class AIService {
 			requestBody = {
 				model: providerConfig?.model,
 				messages: [{ role: 'user', content: aliasPrompt }],
-				max_tokens: 100,
+				max_tokens: MAX_ALIAS_TOKENS,
 				temperature: 0.3
 			};
 		} else if (currentProvider === 'zhipu') {
-			apiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+			apiUrl = 'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions';
 			headers = {
 				'Authorization': `Bearer ${providerConfig?.apiKey}`,
 				'Content-Type': 'application/json',
@@ -298,20 +299,18 @@ export class AIService {
 			requestBody = {
 				model: providerConfig?.model,
 				messages: [{ role: 'user', content: aliasPrompt }],
-				max_tokens: 100,
+				max_tokens: MAX_ALIAS_TOKENS,
 				temperature: 0.3
 			};
-			(requestBody as any).extra_body = {
-				chat_template_kwargs: {
-					enable_thinking: false
-				}
+			(requestBody as any).thinking = {
+				type: "disabled"
 			};
 		} else if (currentProvider === 'gemini') {
 			apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${providerConfig?.model}:generateContent?key=${providerConfig?.apiKey}`;
 			headers = { 'Content-Type': 'application/json' };
 			requestBody = {
 				contents: [{ parts: [{ text: aliasPrompt }] }],
-				generationConfig: { temperature: 0.3, maxOutputTokens: 100 }
+				generationConfig: { temperature: 0.3, maxOutputTokens: MAX_ALIAS_TOKENS }
 			};
 		} else if (currentProvider === 'ollama') {
 			const base = this.normalizeBaseUrl(providerConfig?.baseUrl || '');
@@ -321,7 +320,7 @@ export class AIService {
 				model: providerConfig?.model,
 				prompt: aliasPrompt,
 				stream: false,
-				options: { temperature: 0.3, num_predict: 100 }
+				options: { temperature: 0.3, num_predict: MAX_ALIAS_TOKENS }
 			};
 		} else if (currentProvider === 'custom' && providerConfig?.baseUrl) {
 			const base = this.normalizeBaseUrl(providerConfig.baseUrl);
@@ -337,7 +336,7 @@ export class AIService {
 			requestBody = {
 				model: providerConfig?.model,
 				messages: [{ role: 'user', content: aliasPrompt }],
-				max_tokens: 100,
+				max_tokens: MAX_ALIAS_TOKENS,
 				temperature: 0.3
 			};
 		} else {

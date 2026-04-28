@@ -365,6 +365,10 @@ export default class NoteDefinition extends Plugin {
 			if (plugin?.forceUpdate) {
 				plugin.forceUpdate();
 			}
+
+			if (activeView.previewMode) {
+				activeView.previewMode.rerender(true);
+			}
 		}
 	}
 
