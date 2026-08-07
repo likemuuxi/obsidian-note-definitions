@@ -20,7 +20,6 @@ import { FMSuggestModal } from './editor/frontmatter-suggest-modal';
 import { registerDefFile } from './editor/def-file-registration';
 import { DefFileType } from './core/file-type';
 import { DefFileUpdater, DEFINITIONS_UPDATED_EVENT } from './core/def-file-updater';
-import { FlashcardManager } from './core/flashcard-manager';
 import { Modal } from 'obsidian';
 
 
@@ -28,19 +27,12 @@ export default class NoteDefinition extends Plugin {
 	activeEditorExtensions: Extension[] = [];
 	defManager: DefManager;
 	fileExplorerDeco: FileExplorerDecoration;
-	flashcardManager: FlashcardManager;
 
 	async onload() {
 		// Settings are injected into global object
 		const data = await this.loadData();
 		const settings = Object.assign({}, DEFAULT_SETTINGS, data)
 		injectGlobals(settings, this.app, window);
-
-		// 初始化闪卡管理器
-		this.flashcardManager = new FlashcardManager(this.app);
-		if (data) {
-			await this.flashcardManager.loadData(data);
-		}
 
 		this.registerEvent(this.app.workspace.on('window-open', (win: WorkspaceWindow, newWindow: Window) => {
 			injectGlobals(settings, this.app, newWindow);
@@ -76,11 +68,6 @@ export default class NoteDefinition extends Plugin {
 		this.addSettingTab(new SettingsTab(this.app, this, this.saveSettings.bind(this)));
 		this.registerMarkdownPostProcessor(postProcessor);
 
-		// 定期保存闪卡数据（每5分钟）
-		this.registerInterval(window.setInterval(() => {
-			this.saveFlashcardData();
-		}, 5 * 60 * 1000));
-
 		this.fileExplorerDeco.run();
 
 		// 在依赖初始化完成后再激活侧边栏，避免空内容
@@ -88,24 +75,9 @@ export default class NoteDefinition extends Plugin {
 	}
 
 	async saveSettings() {
-		// 合并设置和闪卡数据
-		const dataToSave = {
-			...window.NoteDefinition.settings,
-			...this.flashcardManager.getData()
-		};
-		await this.saveData(dataToSave);
+		await this.saveData(window.NoteDefinition.settings);
 		this.fileExplorerDeco.run();
 		this.refreshDefinitions();
-	}
-
-	async saveFlashcardData() {
-		// 仅保存闪卡数据，不触发其他更新
-		const currentData = await this.loadData() || {};
-		const dataToSave = {
-			...currentData,
-			...this.flashcardManager.getData()
-		};
-		await this.saveData(dataToSave);
 	}
 
 	registerCommands() {

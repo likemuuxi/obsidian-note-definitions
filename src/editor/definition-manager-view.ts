@@ -4,9 +4,6 @@ import { DefFileUpdater } from "src/core/def-file-updater";
 import { DefFileType } from "src/core/file-type";
 import { Definition } from "src/core/model";
 import { EditDefinitionModal } from "src/editor/edit-modal";
-import { ViewMode, getSettings, FlashcardConfig } from "src/settings";
-import { FlashcardManager } from "src/core/flashcard-manager";
-
 export const DEFINITION_MANAGER_VIEW_TYPE = "definition-manager-view";
 
 interface DefinitionWithSource extends Definition {
@@ -34,19 +31,18 @@ export class DefinitionManagerView extends ItemView {
 
     // 设置相关
 	protected enableTruncation: boolean = true;
-	protected currentViewMode: ViewMode = ViewMode.Manager;
-	protected flashcardManager?: FlashcardManager;
-	
-	// 浏览模式相关
-	protected browseMode: 'flashcard' | 'browse' = 'flashcard';
-	protected selectedConsolidatedFiles: TFile[] = [];
-	protected currentBrowseIndex: number = 0;
-	protected browseDefinitions: Array<{file: TFile, definitions: any[]}> = [];
-	protected flatBrowseList: Array<{file: TFile, definition: any}> = [];
 	protected isViewActive: boolean = false;
 	protected managerOnly: boolean = false;
 	protected allowRandomStyle: boolean = true;
 	private relayoutTimeout?: number;
+
+    // 布局模式
+    protected viewLayout: 'masonry' | 'gallery' = 'masonry';
+    protected galleryIndex: number = 0;
+
+    // 文件夹侧边栏
+    protected selectedFolder: string | null = null;
+    protected collapsedFolders: Set<string> = new Set();
 
     // Lazy loading
     protected page: number = 1;
@@ -99,22 +95,7 @@ export class DefinitionManagerView extends ItemView {
 
     async onOpen() {
         this.isViewActive = true;
-        
-        // 根据设置确定默认视图模式
-        const settings = getSettings();
-        const defaultMode = settings.defaultViewMode || 'manager';
-        
-        if (defaultMode === 'flashcard') {
-            this.currentViewMode = ViewMode.Flashcard;
-            this.browseMode = 'flashcard';
-        } else if (defaultMode === 'browse') {
-            this.currentViewMode = ViewMode.Flashcard;
-            this.browseMode = 'browse';
-        } else {
-            this.currentViewMode = ViewMode.Manager;
-            this.browseMode = 'flashcard';
-        }
-        
+
         await this.loadDefinitions();
         this.render();
     }
@@ -144,12 +125,6 @@ export class DefinitionManagerView extends ItemView {
 
         // 重置状态
         this.isViewActive = false;
-        this.currentViewMode = ViewMode.Manager;
-        this.browseMode = 'flashcard';
-        this.selectedConsolidatedFiles = [];
-        this.currentBrowseIndex = 0;
-        this.browseDefinitions = [];
-        this.flatBrowseList = [];
     }
 
     protected async loadDefinitions() {
@@ -224,6 +199,14 @@ export class DefinitionManagerView extends ItemView {
                 // 注意：当selectedFileType为'all'时，不进行源文件过滤，显示所有类型的定义
             }
 
+            // 文件夹侧边栏过滤（包含子文件夹）
+            if (this.selectedFolder !== null) {
+                const defFolderPath = def.filePath.split('/').slice(0, -1).join('/');
+                if (defFolderPath !== this.selectedFolder && !defFolderPath.startsWith(this.selectedFolder + '/')) {
+                    return false;
+                }
+            }
+
             return true;
         });
 
@@ -283,7 +266,7 @@ export class DefinitionManagerView extends ItemView {
 
 	private scheduleRelayout() {
 		if (this.managerOnly) return;
-		if (this.currentViewMode !== ViewMode.Manager) return;
+		if (this.viewLayout !== 'masonry') return;
 
 		if (this.relayoutTimeout) window.clearTimeout(this.relayoutTimeout);
 		this.relayoutTimeout = window.setTimeout(() => {
@@ -302,71 +285,149 @@ export class DefinitionManagerView extends ItemView {
 		const container = this.containerEl.children[1];
 		container.empty();
 		container.addClass("def-manager-view-container");
-		
-		if (this.managerOnly) {
-			this.currentViewMode = ViewMode.Manager;
-			this.browseMode = 'flashcard';
+
+		// 创建主布局：左侧文件夹面板 + 右侧内容
+		const mainLayout = container.createDiv({ cls: "def-manager-layout" });
+		if (!this.managerOnly) {
+			mainLayout.addClass("with-sidebar");
+			const sidebar = mainLayout.createDiv({ cls: "def-folder-sidebar" });
+			this.renderFolderSidebar(sidebar);
 		}
-		
-		// 创建模式切换按钮
-		// if (!this.managerOnly) {
-		// 	this.createModeButtons(container);
-		// }
 
-		// Definition Manager模式
-		this.createManagerToolbar(container);
-		this.createDefinitionList(container);
-		// 根据当前模式渲染内容
-		// if (this.currentViewMode === ViewMode.Manager) {
-		// 	// Definition Manager模式
-		// 	this.createManagerToolbar(container);
-		// 	this.createDefinitionList(container);
-		// } else if (this.currentViewMode === ViewMode.Statistics) {
-		// 	// Statistics Dashboard模式
-		// 	this.renderStatisticsView(container);
-		// } else {
-		// 	// 闪卡模式（包含Browse Mode和Flashcard Study）
-		// 	this.renderFlashcardView(container);
-		// }
+		const contentArea = mainLayout.createDiv({ cls: "def-manager-content" });
+		this.createManagerToolbar(contentArea);
+		this.createDefinitionList(contentArea);
 	}
 
-	// 创建模式切换按钮
-	protected createModeButtons(container: Element) {
-		const modeContainer = container.createDiv({ cls: "mode-buttons-container" });
-		
-		// Definition Manager按钮 - 放到首位
-		const managerBtn = modeContainer.createEl("button", {
-			cls: `mode-btn ${this.currentViewMode === ViewMode.Manager ? 'active' : ''}`
-		});
-		this.setIconWithLabel(managerBtn, "clipboard-list", "Definition Manager");
-		managerBtn.addEventListener('click', async () => {
-			this.currentViewMode = ViewMode.Manager;
-			await this.loadDefinitions(); // 重新加载定义数据
-			this.render();
-		});
+    protected renderFolderSidebar(sidebar: HTMLElement) {
+        sidebar.empty();
 
-		// Flashcard Study按钮
-		const flashcardBtn = modeContainer.createEl("button", {
-			cls: `mode-btn ${this.currentViewMode === ViewMode.Flashcard && this.browseMode === 'flashcard' ? 'active' : ''}`
-		});
-		this.setIconWithLabel(flashcardBtn, "graduation-cap", "Flashcard Study");
-		flashcardBtn.addEventListener('click', () => {
-			this.currentViewMode = ViewMode.Flashcard;
-			this.browseMode = 'flashcard';
-			this.render();
-		});
+        const header = sidebar.createDiv({ cls: "def-folder-sidebar-header" });
+        header.createEl("h3", { text: "Folders" });
 
-		// Browse Mode按钮
-		const browseBtn = modeContainer.createEl("button", {
-			cls: `mode-btn ${this.currentViewMode === ViewMode.Flashcard && this.browseMode === 'browse' ? 'active' : ''}`
-		});
-		this.setIconWithLabel(browseBtn, "book-open", "Browse Mode");
-		browseBtn.addEventListener('click', () => {
-			this.currentViewMode = ViewMode.Flashcard;
-			this.browseMode = 'browse';
-			this.render();
-		});
-	}
+        const list = sidebar.createDiv({ cls: "def-folder-sidebar-list" });
+
+        // 构建文件夹树
+        const tree = this.buildFolderTree();
+
+        // "All" 选项
+        const allItem = list.createDiv({
+            cls: `def-folder-item ${this.selectedFolder === null ? 'active' : ''}`
+        });
+        allItem.createSpan({ cls: "def-folder-item-name", text: "All" });
+        allItem.createSpan({ cls: "def-folder-count", text: `${this.definitions.length}` });
+        allItem.addEventListener("click", () => {
+            this.selectedFolder = null;
+            this.applyFolderFilter();
+            this.updateDefinitionList();
+            this.renderFolderSidebar(sidebar);
+        });
+
+        // 递归渲染树
+        this.renderFolderTreeNodes(list, tree, 0, sidebar);
+    }
+
+    private buildFolderTree(): Map<string, { name: string; path: string; count: number; children: Map<string, any> }> {
+        type TreeNode = { name: string; path: string; count: number; children: Map<string, TreeNode> };
+        const root = new Map<string, TreeNode>();
+
+        this.definitions.forEach(def => {
+            const parts = def.filePath.split('/');
+            const folderParts = parts.slice(0, -1); // 去掉文件名
+            let currentPath = '';
+            let currentLevel = root;
+
+            folderParts.forEach((part, idx) => {
+                currentPath = currentPath ? `${currentPath}/${part}` : part;
+                if (!currentLevel.has(part)) {
+                    currentLevel.set(part, {
+                        name: part,
+                        path: currentPath,
+                        count: 0,
+                        children: new Map()
+                    });
+                }
+                const node = currentLevel.get(part)!;
+                // 叶子文件夹累加计数
+                if (idx === folderParts.length - 1) {
+                    node.count++;
+                }
+                currentLevel = node.children;
+            });
+
+            // 如果文件直接在根目录（无文件夹）
+            if (folderParts.length === 0) {
+                const rootName = '/';
+                if (!root.has(rootName)) {
+                    root.set(rootName, { name: '/', path: '', count: 0, children: new Map() });
+                }
+                root.get(rootName)!.count++;
+            }
+        });
+
+        return root;
+    }
+
+    private renderFolderTreeNodes(
+        container: HTMLElement,
+        nodes: Map<string, { name: string; path: string; count: number; children: Map<string, any> }>,
+        depth: number,
+        sidebar: HTMLElement
+    ) {
+        const sortedKeys = Array.from(nodes.keys()).sort();
+        for (const key of sortedKeys) {
+            const node = nodes.get(key)!;
+            const hasChildren = node.children.size > 0;
+            const isCollapsed = this.collapsedFolders.has(node.path);
+
+            const item = container.createDiv({
+                cls: `def-folder-item def-folder-tree-item ${this.selectedFolder === node.path ? 'active' : ''}`
+            });
+            item.style.paddingLeft = `${8 + depth * 16}px`;
+
+            // 展开/折叠箭头
+            if (hasChildren) {
+                const chevron = item.createSpan({ cls: `def-folder-chevron ${isCollapsed ? '' : 'expanded'}` });
+                this.setIconWithLabel(chevron, isCollapsed ? 'chevron-right' : 'chevron-down');
+                chevron.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    if (isCollapsed) {
+                        this.collapsedFolders.delete(node.path);
+                    } else {
+                        this.collapsedFolders.add(node.path);
+                    }
+                    this.renderFolderSidebar(sidebar);
+                });
+            } else {
+                // 无子项时占位，保持对齐
+                item.createSpan({ cls: "def-folder-chevron-placeholder" });
+            }
+
+            // 文件夹名
+            const nameSpan = item.createSpan({ cls: "def-folder-item-name", text: node.name });
+            nameSpan.setAttribute("title", node.path || node.name);
+
+            // 计数
+            item.createSpan({ cls: "def-folder-count", text: `${node.count}` });
+
+            // 点击选中
+            item.addEventListener("click", () => {
+                this.selectedFolder = this.selectedFolder === node.path ? null : node.path;
+                this.applyFolderFilter();
+                this.updateDefinitionList();
+                this.renderFolderSidebar(sidebar);
+            });
+
+            // 递归渲染子项
+            if (hasChildren && !isCollapsed) {
+                this.renderFolderTreeNodes(container, node.children, depth + 1, sidebar);
+            }
+        }
+    }
+
+    protected applyFolderFilter() {
+        this.applyFilters();
+    }
 
 	// 创建管理器工具栏（简化版，只包含管理器功能）
 	protected createManagerToolbar(container: Element) {
@@ -489,6 +550,18 @@ export class DefinitionManagerView extends ItemView {
 			this.scheduleRelayout();
 		});
 
+		// 布局切换按钮：瀑布流 vs 图库浏览
+		if (!this.managerOnly) {
+			const layoutBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
+			this.updateLayoutButton(layoutBtn);
+			layoutBtn.addEventListener("click", () => {
+				this.viewLayout = this.viewLayout === 'masonry' ? 'gallery' : 'masonry';
+				this.updateLayoutButton(layoutBtn);
+				this.galleryIndex = 0;
+				this.updateDefinitionList();
+			});
+		}
+
 		// 导出按钮
 		// const exportBtn = toolbar.createEl("button", {
 		// 	cls: "def-toolbar-btn"
@@ -507,6 +580,18 @@ export class DefinitionManagerView extends ItemView {
 		// 	await this.showBatchDeleteModal();
 		// });
 	}
+
+    private updateLayoutButton(btn: HTMLElement) {
+        if (this.viewLayout === 'masonry') {
+            this.setIconWithLabel(btn, "layout-grid");
+            btn.setAttribute("aria-label", "Switch to gallery view");
+            btn.title = "Switch to gallery view";
+        } else {
+            this.setIconWithLabel(btn, "gallery-horizontal");
+            btn.setAttribute("aria-label", "Switch to masonry view");
+            btn.title = "Switch to masonry view";
+        }
+    }
 
     private updateFileSelect(fileSelect: HTMLSelectElement) {
         fileSelect.innerHTML = '';
@@ -582,8 +667,12 @@ export class DefinitionManagerView extends ItemView {
 		const list = listContainer || this.containerEl.querySelector(this.managerOnly ? '.def-sidebar-list' : '.def-manager-list');
 		if (!list) return;
 
+		// 清理 gallery 模式残留的类和样式
+		list.removeClass("def-gallery-container");
+		(list as HTMLElement).style.height = '';
+
 		list.empty();
-        
+
         if (this.observer) {
             this.observer.disconnect();
             this.observer = null;
@@ -599,12 +688,166 @@ export class DefinitionManagerView extends ItemView {
 			return;
 		}
 
-		// 只有在管理模式下才执行瀑布流布局
-		if (this.currentViewMode === ViewMode.Manager) {
-            this.page = 1;
-            this.renderBatch(list as HTMLElement, 0);
+		if (this.viewLayout === 'gallery' && !this.managerOnly) {
+			this.renderGalleryView(list as HTMLElement);
+		} else {
+			this.page = 1;
+			this.renderBatch(list as HTMLElement, 0);
 		}
 	}
+
+    protected renderGalleryView(list: HTMLElement) {
+        list.addClass("def-gallery-container");
+        list.empty();
+
+        if (this.galleryIndex >= this.filteredDefinitions.length) {
+            this.galleryIndex = 0;
+        }
+
+        // 主卡片显示区域
+        const mainCardArea = list.createDiv({ cls: "def-gallery-main" });
+
+        // 导航按钮
+        const navArea = list.createDiv({ cls: "def-gallery-nav" });
+        const prevBtn = navArea.createEl("button", { cls: "def-gallery-nav-btn" });
+        this.setIconWithLabel(prevBtn, "chevron-left");
+        prevBtn.setAttribute("aria-label", "Previous");
+
+        const counter = navArea.createEl("span", { cls: "def-gallery-counter" });
+
+        const nextBtn = navArea.createEl("button", { cls: "def-gallery-nav-btn" });
+        this.setIconWithLabel(nextBtn, "chevron-right");
+        nextBtn.setAttribute("aria-label", "Next");
+
+        // 缩略图列表（只创建一次）
+        const thumbStrip = list.createDiv({ cls: "def-gallery-thumbs" });
+        this.filteredDefinitions.forEach((def, index) => {
+            const thumb = thumbStrip.createDiv({
+                cls: `def-gallery-thumb ${index === this.galleryIndex ? 'active' : ''}`
+            });
+
+            const thumbWord = thumb.createDiv({ cls: "def-gallery-thumb-word" });
+            thumbWord.setText(def.word);
+
+            const thumbPreview = thumb.createDiv({ cls: "def-gallery-thumb-preview" });
+            const previewText = def.definition.substring(0, 80).replace(/[#*`]/g, '');
+            thumbPreview.setText(previewText + (def.definition.length > 80 ? '...' : ''));
+
+            thumb.addEventListener("click", () => {
+                this.galleryIndex = index;
+                this.updateGallerySelection(mainCardArea, counter, prevBtn, nextBtn, thumbStrip);
+            });
+        });
+
+        // 更新选中状态的局部方法（不重建缩略图条）
+        const goTo = (delta: number) => {
+            const newIndex = this.galleryIndex + delta;
+            if (newIndex >= 0 && newIndex < this.filteredDefinitions.length) {
+                this.galleryIndex = newIndex;
+                this.updateGallerySelection(mainCardArea, counter, prevBtn, nextBtn, thumbStrip);
+            }
+        };
+
+        prevBtn.addEventListener("click", () => goTo(-1));
+        nextBtn.addEventListener("click", () => goTo(1));
+
+        // 初始渲染
+        this.updateGallerySelection(mainCardArea, counter, prevBtn, nextBtn, thumbStrip);
+    }
+
+    private updateGallerySelection(
+        mainCardArea: HTMLElement,
+        counter: HTMLElement,
+        prevBtn: HTMLButtonElement,
+        nextBtn: HTMLButtonElement,
+        thumbStrip: HTMLElement
+    ) {
+        // 更新主卡片
+        mainCardArea.empty();
+        const currentDef = this.filteredDefinitions[this.galleryIndex];
+        if (currentDef) {
+            this.createGalleryMainCard(mainCardArea, currentDef);
+        }
+
+        // 更新计数器
+        counter.setText(`${this.galleryIndex + 1} / ${this.filteredDefinitions.length}`);
+
+        // 更新按钮状态
+        prevBtn.disabled = this.galleryIndex === 0;
+        nextBtn.disabled = this.galleryIndex >= this.filteredDefinitions.length - 1;
+
+        // 更新缩略图激活状态
+        const thumbs = thumbStrip.querySelectorAll('.def-gallery-thumb');
+        thumbs.forEach((thumb, index) => {
+            thumb.toggleClass('active', index === this.galleryIndex);
+        });
+
+        // 横向滚动缩略图条到选中项（不影响纵向滚动）
+        const activeThumb = thumbStrip.querySelector('.def-gallery-thumb.active') as HTMLElement | null;
+        if (activeThumb) {
+            const targetLeft = activeThumb.offsetLeft - thumbStrip.clientWidth / 2 + activeThumb.clientWidth / 2;
+            thumbStrip.scrollTo({ left: targetLeft, behavior: 'smooth' });
+        }
+    }
+
+    private createGalleryMainCard(container: HTMLElement, def: DefinitionWithSource): HTMLElement {
+        const card = container.createDiv({ cls: "def-gallery-card" });
+
+        // 头部
+        const header = card.createDiv({ cls: "def-gallery-card-header" });
+        const wordEl = header.createEl("h2", { cls: "def-gallery-card-word" });
+        wordEl.innerHTML = this.highlightText(def.word, this.searchTerm);
+
+        // 操作按钮
+        const actions = header.createDiv({ cls: "def-gallery-card-actions" });
+
+        const editBtn = actions.createEl("button", { cls: "def-card-action-btn" });
+        this.setIconWithLabel(editBtn, "pencil");
+        editBtn.setAttribute("aria-label", "Edit");
+        editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.editDefinition(def);
+        });
+
+        const viewBtn = actions.createEl("button", { cls: "def-card-action-btn" });
+        this.setIconWithLabel(viewBtn, "file-symlink");
+        viewBtn.setAttribute("aria-label", "View File");
+        viewBtn.addEventListener('click', () => this.openSourceFile(def));
+
+        const deleteBtn = actions.createEl("button", { cls: "def-card-action-btn" });
+        this.setIconWithLabel(deleteBtn, "trash-2");
+        deleteBtn.setAttribute("aria-label", "Delete");
+        deleteBtn.style.color = "red";
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.deleteDefinition(def);
+        });
+
+        // 别名
+        if (def.aliases.length > 0) {
+            const aliasesContainer = card.createDiv({ cls: "def-gallery-card-aliases" });
+            def.aliases.forEach(alias => {
+                const aliasEl = aliasesContainer.createSpan({ cls: "def-card-alias" });
+                aliasEl.innerHTML = this.highlightText(String(alias), this.searchTerm);
+            });
+        }
+
+        // 完整定义
+        const definitionEl = card.createDiv({ cls: "def-gallery-card-definition" });
+        MarkdownRenderer.render(
+            this.app,
+            def.definition,
+            definitionEl,
+            def.sourceFile.path,
+            new Component()
+        );
+
+        // 文件信息
+        const fileInfo = card.createDiv({ cls: "def-gallery-card-info" });
+        fileInfo.innerHTML = `<span>📁 ${def.sourceFile.name}</span> · <span>${def.fileType}</span>`;
+
+        return card;
+    }
 
     protected renderBatch(list: HTMLElement, startIndex: number) {
         const batch = this.filteredDefinitions.slice(startIndex, startIndex + this.pageSize);
@@ -1465,1327 +1708,5 @@ export class DefinitionManagerView extends ItemView {
 		// 刷新列表
 		await this.loadDefinitions();
 		this.updateDefinitionList();
-	}
-
-
-
-	// 渲染闪卡学习界面
-	private async renderFlashcardView(container: Element) {
-		// 获取主插件的闪卡管理器实例
-		if (!this.flashcardManager) {
-			const plugin = (this.app as any).plugins?.getPlugin('obsidian-note-definitions') as any;
-			if (plugin?.flashcardManager) {
-				this.flashcardManager = plugin.flashcardManager;
-			} else {
-				this.flashcardManager = new FlashcardManager(this.app);
-			}
-		}
-
-		// 根据模式渲染不同的界面
-		if (this.browseMode === 'flashcard') {
-			await this.renderAtomicFlashcardStudy(container);
-		} else {
-			await this.renderConsolidatedBrowse(container);
-		}
-	}
-
-	// 渲染atomic类型的闪卡学习
-	private async renderAtomicFlashcardStudy(container: Element) {
-		// 创建闪卡学习界面
-		const flashcardContainer = container.createDiv({ cls: "flashcard-study-container" });
-		
-		// 学习统计（包含设置按钮）
-		const statsContainer = flashcardContainer.createDiv({ cls: "flashcard-stats" });
-		await this.updateFlashcardStats(statsContainer);
-
-		// 卡片显示区域
-		const cardContainer = flashcardContainer.createDiv({ cls: "flashcard-card-container" });
-		
-		// 问题区域
-		const questionArea = cardContainer.createDiv({ cls: "flashcard-question" });
-		
-		// 答案区域（初始隐藏）
-		const answerArea = cardContainer.createDiv({ cls: "flashcard-answer" });
-		(answerArea as HTMLElement).style.display = "none";
-
-		// 控制按钮区域
-		const controlsContainer = flashcardContainer.createDiv({ cls: "flashcard-controls" });
-		
-		// 初始化学习界面
-		await this.initializeFlashcardStudy(questionArea, answerArea, controlsContainer, statsContainer);
-	}
-
-	// 渲染consolidated类型的浏览模式
-	private async renderConsolidatedBrowse(container: Element) {
-		const browseContainer = container.createDiv({ cls: "browse-study-container" });
-		
-		// 获取所有consolidated文件
-		const consolidatedFiles = this.flashcardManager?.getConsolidatedFiles() || [];
-		
-		if (consolidatedFiles.length === 0) {
-			browseContainer.createEl("p", { 
-				text: "No consolidated definition files found.",
-				cls: "browse-empty-message"
-			});
-			return;
-		}
-
-		// 创建固定的卡片容器（类似Flashcard Study）
-		const cardContainer = browseContainer.createDiv({ cls: "browse-card-container" });
-		
-		// 如果还没有选择文件，默认选择所有文件
-		if (this.selectedConsolidatedFiles.length === 0) {
-			this.selectedConsolidatedFiles = [...consolidatedFiles];
-		}
-
-		// 创建侧边栏布局
-		const browseLayout = cardContainer.createDiv({ cls: "browse-layout" });
-		
-		// 左侧文件选择侧边栏
-		const sidebar = browseLayout.createDiv({ cls: "browse-sidebar" });
-		this.renderFileSidebar(sidebar, consolidatedFiles);
-		
-		// 右侧内容区域
-		const contentArea = browseLayout.createDiv({ cls: "browse-content" });
-
-		// 初始化浏览数据
-		this.updateBrowseData();
-
-		if (this.flatBrowseList.length === 0) {
-			contentArea.createEl("p", { 
-				text: "No definitions found in selected files.",
-				cls: "browse-empty-message"
-			});
-			return;
-		}
-
-		// 如果还没有设置当前索引，设置为0
-		if (this.currentBrowseIndex >= this.flatBrowseList.length) {
-			this.currentBrowseIndex = 0;
-		}
-
-		// 渲染浏览界面
-		this.renderBrowseContent(contentArea);
-		
-		// 在卡片容器下方添加导航按钮
-		this.createBrowseNavigation(browseContainer);
-	}
-
-	// 创建浏览模式的导航按钮（放在卡片外部）
-	private createBrowseNavigation(container: Element) {
-		const navigationContainer = container.createDiv({ cls: "browse-navigation-external" });
-		
-		const prevBtn = navigationContainer.createEl("button", {
-			cls: "flashcard-btn flashcard-btn-secondary",
-			text: "← Previous"
-		});
-		prevBtn.disabled = this.currentBrowseIndex === 0;
-		prevBtn.addEventListener('click', () => {
-			if (this.currentBrowseIndex > 0) {
-				this.currentBrowseIndex--;
-				this.updateBrowseContent();
-			}
-		});
-
-		const nextBtn = navigationContainer.createEl("button", {
-			cls: "flashcard-btn flashcard-btn-secondary",
-			text: "Next →"
-		});
-		nextBtn.disabled = this.currentBrowseIndex === this.flatBrowseList.length - 1;
-		nextBtn.addEventListener('click', () => {
-			if (this.currentBrowseIndex < this.flatBrowseList.length - 1) {
-				this.currentBrowseIndex++;
-				this.updateBrowseContent();
-			}
-		});
-
-		const randomBtn = navigationContainer.createEl("button", {
-			cls: "flashcard-btn flashcard-btn-primary"
-		});
-		this.setIconWithLabel(randomBtn, "dice-5", "Random");
-		randomBtn.addEventListener('click', () => {
-			this.currentBrowseIndex = Math.floor(Math.random() * this.flatBrowseList.length);
-			this.updateBrowseContent();
-		});
-	}
-
-	// 更新浏览内容（不重新渲染整个界面）
-	private updateBrowseContent() {
-		const contentArea = this.containerEl.querySelector('.browse-content');
-		if (contentArea) {
-			this.renderBrowseContent(contentArea);
-		}
-		
-		// 更新导航按钮状态
-		const prevBtn = this.containerEl.querySelector('.browse-navigation-external .flashcard-btn:first-child') as HTMLButtonElement;
-		const nextBtn = this.containerEl.querySelector('.browse-navigation-external .flashcard-btn:nth-child(2)') as HTMLButtonElement;
-		
-		if (prevBtn) prevBtn.disabled = this.currentBrowseIndex === 0;
-		if (nextBtn) nextBtn.disabled = this.currentBrowseIndex === this.flatBrowseList.length - 1;
-	}
-
-	// 更新浏览数据
-	private updateBrowseData() {
-		this.browseDefinitions = this.flashcardManager?.getDefinitionsFromConsolidatedFiles(this.selectedConsolidatedFiles) || [];
-		this.flatBrowseList = [];
-		this.browseDefinitions.forEach(({ file, definitions }) => {
-			definitions.forEach(definition => {
-				this.flatBrowseList.push({ file, definition });
-			});
-		});
-	}
-
-	// 渲染文件选择侧边栏
-	private renderFileSidebar(sidebar: Element, consolidatedFiles: TFile[]) {
-		sidebar.innerHTML = '';
-		
-		const sidebarTitle = sidebar.createEl("h3", { 
-			text: "Select Files",
-			cls: "browse-sidebar-title"
-		});
-		
-		// 全选/取消全选按钮
-		const selectAllContainer = sidebar.createDiv({ cls: "browse-select-all" });
-		const selectAllBtn = selectAllContainer.createEl("button", {
-			cls: "browse-select-all-btn",
-			text: this.selectedConsolidatedFiles.length === consolidatedFiles.length ? "Deselect All" : "Select All"
-		});
-		
-		selectAllBtn.addEventListener('click', () => {
-			if (this.selectedConsolidatedFiles.length === consolidatedFiles.length) {
-				this.selectedConsolidatedFiles = [];
-			} else {
-				this.selectedConsolidatedFiles = [...consolidatedFiles];
-			}
-			this.updateBrowseData();
-			this.currentBrowseIndex = 0;
-			
-			// 重新渲染侧边栏和内容
-			this.renderFileSidebar(sidebar, consolidatedFiles);
-			const contentArea = sidebar.parentElement?.querySelector('.browse-content');
-			if (contentArea) {
-				this.renderBrowseContent(contentArea);
-			}
-		});
-		
-		// 文件列表
-		const fileList = sidebar.createDiv({ cls: "browse-file-list" });
-		
-		consolidatedFiles.forEach(file => {
-			const fileItem = fileList.createDiv({ cls: "browse-file-item" });
-			
-			const checkbox = fileItem.createEl("input", { type: "checkbox" });
-			checkbox.checked = this.selectedConsolidatedFiles.includes(file);
-			
-			const label = fileItem.createEl("label", { text: file.name });
-			label.addEventListener('click', () => {
-				checkbox.checked = !checkbox.checked;
-				this.toggleFileSelection(file, checkbox.checked);
-			});
-			
-			checkbox.addEventListener('change', (e) => {
-				this.toggleFileSelection(file, (e.target as HTMLInputElement).checked);
-			});
-		});
-	}
-
-	// 切换文件选择状态
-	private toggleFileSelection(file: TFile, selected: boolean) {
-		if (selected) {
-			if (!this.selectedConsolidatedFiles.includes(file)) {
-				this.selectedConsolidatedFiles.push(file);
-			}
-		} else {
-			this.selectedConsolidatedFiles = this.selectedConsolidatedFiles.filter(f => f !== file);
-		}
-		
-		this.updateBrowseData();
-		this.currentBrowseIndex = 0;
-		
-		// 重新渲染内容区域
-		this.updateBrowseContent();
-		
-		// 更新全选按钮状态
-		const selectAllBtn = this.containerEl.querySelector('.browse-select-all-btn') as HTMLButtonElement;
-		if (selectAllBtn) {
-			const consolidatedFiles = this.flashcardManager?.getConsolidatedFiles() || [];
-			selectAllBtn.textContent = this.selectedConsolidatedFiles.length === consolidatedFiles.length ? "Deselect All" : "Select All";
-		}
-	}
-
-	// 渲染浏览内容区域
-	private renderBrowseContent(contentArea: Element) {
-		contentArea.innerHTML = '';
-		
-		if (this.flatBrowseList.length === 0) {
-			contentArea.createEl("p", { 
-				text: "No definitions found in selected files.",
-				cls: "browse-empty-message"
-			});
-			return;
-		}
-		
-		const browseInterface = contentArea.createDiv({ cls: "browse-interface" });
-		
-		// 进度信息
-		const progressContainer = browseInterface.createDiv({ cls: "browse-progress" });
-		progressContainer.innerHTML = `
-			<span class="browse-current">${this.currentBrowseIndex + 1}</span> / 
-			<span class="browse-total">${this.flatBrowseList.length}</span>
-		`;
-
-		// 当前定义
-		const currentItem = this.flatBrowseList[this.currentBrowseIndex];
-		
-		// 定义卡片
-		const definitionCard = browseInterface.createDiv({ cls: "browse-definition-card" });
-		
-		// 词语标题
-		const wordTitle = definitionCard.createEl("h2", { 
-			text: currentItem.definition.word,
-			cls: "browse-word-title"
-		});
-
-        // 别名
-		if (currentItem.definition.aliases && currentItem.definition.aliases.length > 0) {
-			const aliasesContainer = definitionCard.createDiv({ cls: "browse-aliases" });
-			aliasesContainer.innerHTML = `<strong>Aliases:</strong> ${currentItem.definition.aliases.join(', ')}<br></br>`;
-		}
-
-		// 定义内容
-		const definitionContent = definitionCard.createDiv({ cls: "browse-definition-content" });
-		MarkdownRenderer.render(
-			this.app,
-			currentItem.definition.definition,
-			definitionContent,
-			currentItem.file.path,
-			new Component()
-		);
-
-		// 文件信息
-		const fileInfo = definitionCard.createDiv({ cls: "browse-file-info" });
-		fileInfo.innerHTML = `From: <strong>${currentItem.file.name}</strong>`;
-	}
-
-	// 更新闪卡统计信息
-	private async updateFlashcardStats(statsContainer: Element) {
-		if (!this.flashcardManager) return;
-
-		const stats = await this.flashcardManager.getStats();
-		const studyQueue = await this.flashcardManager.getTodayStudyQueue();
-
-		// 清空容器内容
-		statsContainer.empty();
-
-		// 在统计信息最左侧添加Statistics按钮
-		const statisticsBtn = statsContainer.createEl("button", {
-			cls: "flashcard-settings-btn-inline"
-		});
-		this.setIconWithLabel(statisticsBtn, "bar-chart-2", "Statistics");
-		statisticsBtn.addEventListener('click', () => {
-			this.currentViewMode = ViewMode.Statistics;
-			this.render();
-		});
-
-		// 创建统计信息项容器
-		const statsItemsContainer = statsContainer.createDiv({ cls: "flashcard-stats-items" });
-		
-		statsItemsContainer.innerHTML = `
-			<div class="flashcard-stats-item">
-				<span class="stats-label">Today:</span>
-				<span class="stats-value">${stats.todayNewCards} new, ${stats.todayReviewCards} review</span>
-			</div>
-			<div class="flashcard-stats-item">
-				<span class="stats-label">Remaining:</span>
-				<span class="stats-value">${studyQueue.length} cards</span>
-			</div>
-			<div class="flashcard-stats-item">
-				<span class="stats-label">Total:</span>
-				<span class="stats-value">${stats.totalCards} cards</span>
-			</div>
-			<div class="flashcard-stats-item">
-				<span class="stats-label">Status:</span>
-				<span class="stats-value">${stats.newCards}N ${stats.learningCards}L ${stats.reviewCards}R ${stats.graduatedCards}G</span>
-			</div>
-		`;
-
-		// 在统计信息右侧添加设置按钮
-		const settingsBtn = statsContainer.createEl("button", {
-			cls: "flashcard-settings-btn-inline"
-		});
-		this.setIconWithLabel(settingsBtn, "settings", "Settings");
-		settingsBtn.addEventListener('click', () => {
-			this.showFlashcardSettingsModal();
-		});
-	}
-
-	// 初始化闪卡学习
-	private async initializeFlashcardStudy(questionArea: Element, answerArea: Element, controlsContainer: Element, statsContainer: Element) {
-		if (!this.flashcardManager) return;
-
-		const studyQueue = await this.flashcardManager.getTodayStudyQueue();
-		
-		if (studyQueue.length === 0) {
-			questionArea.empty();
-			const finishedTitle = questionArea.createEl("h2");
-			this.setIconWithLabel(finishedTitle, "check-circle-2", "All done for today!");
-			questionArea.createEl("p", { text: "You've completed all your scheduled cards. Great job!" });
-			questionArea.createEl("p", { text: "Come back tomorrow for more learning." });
-
-			controlsContainer.empty();
-			
-			// 创建按钮容器
-			const buttonContainer = controlsContainer.createDiv();
-			buttonContainer.style.display = "flex";
-			buttonContainer.style.justifyContent = "center";
-			buttonContainer.style.gap = "15px";
-			buttonContainer.style.marginTop = "20px";
-
-			// Study Extra Cards按钮
-			const studyExtraBtn = buttonContainer.createEl("button", {
-				cls: "flashcard-btn flashcard-btn-primary"
-			});
-			this.setIconWithLabel(studyExtraBtn, "plus-circle", "Study Extra Cards");
-			studyExtraBtn.addEventListener('click', async () => {
-				await this.startExtraStudySession();
-			});
-			
-			return;
-		}
-
-		// 开始学习会话
-		this.currentStudyQueue = [...studyQueue];
-		this.currentCardIndex = 0;
-		this.showingAnswer = false;
-
-		this.showCurrentCard(questionArea, answerArea, controlsContainer, statsContainer);
-	}
-
-	// 当前学习状态
-	private currentStudyQueue: any[] = [];
-	private currentCardIndex: number = 0;
-	private showingAnswer: boolean = false;
-
-	// 显示当前卡片
-	private showCurrentCard(questionArea: Element, answerArea: Element, controlsContainer: Element, statsContainer: Element) {
-		console.log('showCurrentCard 被调用, currentCardIndex:', this.currentCardIndex, 'studyQueue长度:', this.currentStudyQueue.length);
-		
-		if (!this.flashcardManager || this.currentCardIndex >= this.currentStudyQueue.length) {
-			// 学习完成
-			console.log('学习完成或无卡片，进入completeStudySession');
-			this.completeStudySession(questionArea, answerArea, controlsContainer, statsContainer);
-			return;
-		}
-
-		const currentCard = this.currentStudyQueue[this.currentCardIndex];
-		console.log('当前卡片:', currentCard);
-		
-		const defManager = getDefFileManager();
-		
-		// 尝试通过文件路径直接获取定义
-		let definition = defManager.get(currentCard.definitionKey);
-		
-		if (!definition) {
-			console.log('通过definitionKey未找到定义，尝试通过文件路径获取');
-			
-			// 如果通过definitionKey找不到，尝试通过文件路径获取
-			const file = this.app.vault.getAbstractFileByPath(currentCard.filePath) as TFile;
-			if (file) {
-				const definitions = defManager.getDefinitionsFromFile(file);
-				if (definitions.length > 0) {
-					definition = definitions[0]; // 使用第一个定义
-					console.log('通过文件路径找到定义:', definition.word);
-				}
-			}
-		}
-
-		if (!definition) {
-			console.log('跳过无效卡片:', currentCard.definitionKey);
-			// 跳过无效卡片
-			this.currentCardIndex++;
-			this.showCurrentCard(questionArea, answerArea, controlsContainer, statsContainer);
-			return;
-		}
-
-		// 显示问题
-		let questionContent = `
-			<p class="flashcard-progress">Card ${this.currentCardIndex + 1} of ${this.currentStudyQueue.length}</p>
-			<h2>${definition.word}</h2>
-		`;
-		
-		// 如果有别名，在问题阶段就显示
-		if (definition.aliases && definition.aliases.length > 0) {
-			questionContent += `
-				<div class="flashcard-aliases-question">
-					<strong>Aliases:</strong> ${definition.aliases.join(', ')}
-				</div>
-			`;
-		}
-		
-		questionArea.innerHTML = questionContent;
-
-		// 隐藏答案
-		(answerArea as HTMLElement).style.display = "none";
-		answerArea.innerHTML = "";
-		this.showingAnswer = false;
-
-		// 显示控制按钮
-		controlsContainer.innerHTML = "";
-		const showAnswerBtn = controlsContainer.createEl("button", {
-			cls: "flashcard-btn flashcard-btn-primary",
-			text: "Show Answer"
-		});
-
-		showAnswerBtn.addEventListener('click', () => {
-			this.showAnswer(definition, answerArea, controlsContainer, statsContainer);
-		});
-
-		// 更新统计
-		this.updateFlashcardStats(statsContainer);
-	}
-
-	// 显示答案
-	private showAnswer(definition: any, answerArea: Element, controlsContainer: Element, statsContainer: Element) {
-		this.showingAnswer = true;
-
-		// 显示答案区域
-		(answerArea as HTMLElement).style.display = "block";
-		answerArea.innerHTML = "";
-
-		// 渲染定义内容（别名已经在问题区域显示了，这里不再重复显示）
-		const definitionEl = answerArea.createDiv({ cls: "flashcard-definition" });
-		MarkdownRenderer.render(
-			this.app,
-			definition.definition,
-			definitionEl,
-			definition.file.path,
-			new Component()
-		);
-
-		// 显示评分按钮
-		controlsContainer.innerHTML = "";
-		
-		const buttonData = [
-			{ text: "Again", cls: "flashcard-btn-danger", result: 0, desc: "Didn't know" },
-			{ text: "Hard", cls: "flashcard-btn-warning", result: 1, desc: "Difficult" },
-			{ text: "Good", cls: "flashcard-btn-success", result: 2, desc: "Knew it" },
-			{ text: "Easy", cls: "flashcard-btn-secondary", result: 3, desc: "Too easy" }
-		];
-
-		buttonData.forEach(btn => {
-			const button = controlsContainer.createEl("button", {
-				cls: `flashcard-btn ${btn.cls}`,
-				text: btn.text
-			});
-			button.title = btn.desc;
-			
-			button.addEventListener('click', () => {
-				this.rateCard(btn.result, statsContainer);
-			});
-		});
-	}
-
-	// 评分卡片
-	private async rateCard(result: number, statsContainer: Element) {
-		if (!this.flashcardManager) return;
-
-		const currentCard = this.currentStudyQueue[this.currentCardIndex];
-		
-		// 更新卡片结果
-		await this.flashcardManager.updateCardResult(currentCard.filePath, result);
-
-		// 移动到下一张卡片
-		this.currentCardIndex++;
-		
-		// 显示下一张卡片
-		setTimeout(() => {
-			const questionArea = this.containerEl.querySelector('.flashcard-question') as Element;
-			const answerArea = this.containerEl.querySelector('.flashcard-answer') as Element;
-			const controlsContainer = this.containerEl.querySelector('.flashcard-controls') as Element;
-			
-			this.showCurrentCard(questionArea, answerArea, controlsContainer, statsContainer);
-		}, 300);
-	}
-
-	// 完成学习会话
-	private completeStudySession(questionArea: Element, answerArea: Element, controlsContainer: Element, statsContainer: Element) {
-		questionArea.empty();
-		const sessionTitle = questionArea.createEl("h2");
-		this.setIconWithLabel(sessionTitle, "check-circle-2", "Session Complete!");
-		questionArea.createEl("p", { text: `You've finished studying ${this.currentStudyQueue.length} cards.` });
-		questionArea.createEl("p", { text: "Great work! Keep up the consistent practice." });
-
-		(answerArea as HTMLElement).style.display = "none";
-
-		controlsContainer.innerHTML = "";
-		
-		// 创建按钮容器
-		const buttonContainer = controlsContainer.createDiv();
-		buttonContainer.style.display = "flex";
-		buttonContainer.style.justifyContent = "center";
-		buttonContainer.style.gap = "15px";
-		buttonContainer.style.marginTop = "20px";
-
-		// Study Extra Cards按钮
-		const studyExtraBtn = buttonContainer.createEl("button", {
-			cls: "flashcard-btn flashcard-btn-primary"
-		});
-		this.setIconWithLabel(studyExtraBtn, "plus-circle", "Study Extra Cards");
-		studyExtraBtn.addEventListener('click', async () => {
-			await this.startExtraStudySession();
-		});
-
-		// 更新最终统计
-		this.updateFlashcardStats(statsContainer);
-	}
-
-	// 开始额外学习会话
-	private async startExtraStudySession() {
-		console.log('startExtraStudySession 被调用');
-		
-		if (!this.flashcardManager) {
-			console.log('flashcardManager 未初始化');
-			new Notice("闪卡管理器未初始化");
-			return;
-		}
-
-		// 获取所有可用的卡片（不限制今日限额）
-		const allCards = await this.getAllAvailableCards();
-		
-		console.log('获取到的卡片数量:', allCards.length);
-		
-		if (allCards.length === 0) {
-			new Notice("暂无额外的卡片可供学习。请检查是否配置了学习范围或是否存在atomic类型的定义文件。");
-			return;
-		}
-
-		// 重新开始学习会话
-		this.currentStudyQueue = [...allCards];
-		this.currentCardIndex = 0;
-		this.showingAnswer = false;
-
-		console.log('设置新的学习队列，卡片数量:', this.currentStudyQueue.length);
-		console.log('学习队列详情:', this.currentStudyQueue);
-
-		// 直接开始显示第一张卡片，不要重新渲染整个界面
-		const questionArea = this.containerEl.querySelector('.flashcard-question') as Element;
-		const answerArea = this.containerEl.querySelector('.flashcard-answer') as Element;
-		const controlsContainer = this.containerEl.querySelector('.flashcard-controls') as Element;
-		const statsContainer = this.containerEl.querySelector('.flashcard-stats') as Element;
-		
-		if (questionArea && answerArea && controlsContainer && statsContainer) {
-			this.showCurrentCard(questionArea, answerArea, controlsContainer, statsContainer);
-		} else {
-			console.error('找不到闪卡界面元素，回退到重新渲染');
-			this.render();
-		}
-		
-		new Notice(`开始额外学习，共 ${allCards.length} 张卡片`);
-	}
-
-	// 获取所有可用的卡片（用于额外学习）
-	private async getAllAvailableCards(): Promise<any[]> {
-		if (!this.flashcardManager) return [];
-
-		console.log('开始获取额外学习卡片...');
-
-		// 直接获取所有atomic文件，绕过今日限制
-		const defManager = getDefFileManager();
-		const settings = getSettings();
-		const flashcardConfig = settings.flashcardConfig || { studyScope: [] };
-		
-		const allCards: any[] = [];
-
-		console.log('当前学习范围配置:', flashcardConfig.studyScope);
-
-		for (const [filePath, file] of defManager.globalDefFiles) {
-			const fileType = defManager.getFileType(file);
-			if (fileType !== DefFileType.Atomic) continue;
-
-			// 检查是否在学习范围内
-			if (flashcardConfig.studyScope && flashcardConfig.studyScope.length > 0) {
-				const folderPath = filePath.split('/').slice(0, -1).join('/') + '/';
-				if (!flashcardConfig.studyScope.some(scope => scope === folderPath)) {
-					continue;
-				}
-			}
-
-			// 获取文件中的实际定义，使用正确的definitionKey
-			const definitions = defManager.getDefinitionsFromFile(file);
-			if (definitions.length > 0) {
-				const definition = definitions[0]; // 使用第一个定义
-				allCards.push({
-					filePath: filePath,
-					definitionKey: definition.key, // 使用实际的definition key
-					interval: 1,
-					repetitions: 0,
-					easeFactor: 2.5,
-					nextReviewDate: new Date()
-				});
-				console.log(`为文件 ${filePath} 添加卡片，definitionKey: ${definition.key}, word: ${definition.word}`);
-			} else {
-				console.log(`文件 ${filePath} 中没有找到定义，跳过`);
-			}
-		}
-
-		console.log(`找到 ${allCards.length} 个可用的卡片`);
-
-		// 打乱顺序以增加学习的随机性
-		for (let i = allCards.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[allCards[i], allCards[j]] = [allCards[j], allCards[i]];
-		}
-
-		// 限制额外学习的卡片数量（例如最多30张）
-		const result = allCards.slice(0, 30);
-		console.log(`返回 ${result.length} 张卡片用于额外学习`);
-		return result;
-	}
-
-	// 显示闪卡设置模态框
-	private showFlashcardSettingsModal() {
-		const modal = new Modal(this.app);
-		modal.setTitle("Flashcard Learning Settings");
-
-		const content = modal.contentEl;
-		const settings = getSettings();
-		const flashcardConfig = settings.flashcardConfig || {
-			dailyNewCards: 20,
-			dailyReviewLimit: 100,
-			enableSM2Algorithm: true,
-			studyScope: []
-		};
-
-		// 临时存储设置
-		let tempConfig = { ...flashcardConfig };
-
-		// Daily New Cards设置
-		new Setting(content)
-			.setName("Daily New Cards")
-			.setDesc("Maximum number of new cards to study per day")
-			.addSlider(component => {
-				component.setLimits(5, 50, 5);
-				component.setValue(tempConfig.dailyNewCards);
-				component.setDynamicTooltip();
-				component.onChange(value => {
-					tempConfig.dailyNewCards = value;
-				});
-			});
-
-		// Daily Review Limit设置
-		new Setting(content)
-			.setName("Daily Review Limit")
-			.setDesc("Maximum number of review cards to study per day")
-			.addSlider(component => {
-				component.setLimits(20, 200, 10);
-				component.setValue(tempConfig.dailyReviewLimit);
-				component.setDynamicTooltip();
-				component.onChange(value => {
-					tempConfig.dailyReviewLimit = value;
-				});
-			});
-
-		// SM-2 Algorithm设置
-		new Setting(content)
-			.setName("Enable SM-2 Algorithm")
-			.setDesc("Use the SM-2 spaced repetition algorithm for optimal learning intervals")
-			.addToggle(component => {
-				component.setValue(tempConfig.enableSM2Algorithm);
-				component.onChange(value => {
-					tempConfig.enableSM2Algorithm = value;
-				});
-			});
-
-		// Study Scope设置
-		new Setting(content)
-			.setName("Flashcard Study Scope")
-			.setDesc("Select which atomic definition files or folders to include in flashcard learning")
-			.addButton(component => {
-				component.setButtonText("Configure");
-				component.onClick(() => {
-					this.showStudyScopeModal(tempConfig);
-				});
-			});
-
-		// 按钮容器
-		const buttonContainer = content.createDiv();
-		buttonContainer.style.display = "flex";
-		buttonContainer.style.justifyContent = "flex-end";
-		buttonContainer.style.gap = "10px";
-		buttonContainer.style.marginTop = "20px";
-
-		const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
-		cancelBtn.addEventListener('click', () => modal.close());
-
-		const saveBtn = buttonContainer.createEl("button", { text: "Save" });
-		saveBtn.addClass("mod-cta");
-		saveBtn.addEventListener('click', async () => {
-			// 保存设置
-			const currentSettings = getSettings();
-			currentSettings.flashcardConfig = tempConfig;
-			
-			// 这里需要调用插件的保存方法
-			const plugin = (this.app as any).plugins?.getPlugin('obsidian-note-definitions') as any;
-			if (plugin?.saveSettings) {
-				await plugin.saveSettings();
-			}
-
-			new Notice("Flashcard settings saved successfully");
-			modal.close();
-			
-			// 重新渲染界面以反映新设置
-			this.render();
-		});
-
-		modal.open();
-	}
-
-	// 显示学习范围配置模态框
-	private showStudyScopeModal(tempConfig: FlashcardConfig) {
-		const modal = new Modal(this.app);
-		modal.setTitle("Configure Study Scope");
-
-		const content = modal.contentEl;
-
-		// 当前选择的范围
-		const currentScope = tempConfig.studyScope || [];
-
-		// 说明文字
-		const description = content.createDiv({ cls: "study-scope-description" });
-		description.innerHTML = `
-			<p>Select which folders to include in flashcard learning:</p>
-			<ul>
-				<li><strong>Folders:</strong> Include all atomic definition files in the selected folder</li>
-				<li><strong>Empty selection:</strong> Include all atomic definition files from all folders</li>
-			</ul>
-			<p><strong>Note:</strong> Only atomic type definitions are used for flashcard study. Consolidated files can be browsed in browse mode.</p>
-		`;
-		description.style.marginBottom = "20px";
-		description.style.fontSize = "14px";
-		description.style.color = "var(--text-muted)";
-
-		// 创建选择列表容器
-		const scopeContainer = content.createDiv({ cls: "study-scope-container" });
-		scopeContainer.style.maxHeight = "400px";
-		scopeContainer.style.overflowY = "auto";
-		scopeContainer.style.border = "1px solid var(--background-modifier-border)";
-		scopeContainer.style.borderRadius = "6px";
-		scopeContainer.style.padding = "10px";
-		scopeContainer.style.marginBottom = "20px";
-
-		// 获取所有可用的文件和文件夹
-		const defManager = getDefFileManager();
-		const availableItems: Array<{type: 'file' | 'folder', path: string, name: string}> = [];
-		const checkboxes: Array<{element: HTMLInputElement, path: string}> = [];
-
-		// 收集所有包含atomic文件的文件夹
-		const atomicFolders = new Set<string>();
-
-		for (const [filePath, file] of defManager.globalDefFiles) {
-			const fileType = defManager.getFileType(file);
-			if (fileType === DefFileType.Atomic) {
-				// 添加文件夹路径
-				const folderPath = filePath.split('/').slice(0, -1).join('/');
-				if (folderPath) {
-					atomicFolders.add(folderPath + '/');
-				}
-			}
-		}
-
-		// 只添加文件夹选项，不显示单个文件
-		Array.from(atomicFolders).sort().forEach(folderPath => {
-			const folderName = folderPath.split('/').slice(-2, -1)[0] || folderPath;
-			availableItems.push({
-				type: 'folder',
-				path: folderPath,
-				name: folderName
-			});
-		});
-
-		availableItems.forEach(item => {
-			const itemDiv = scopeContainer.createDiv({ cls: "study-scope-item" });
-			itemDiv.style.display = "flex";
-			itemDiv.style.alignItems = "center";
-			itemDiv.style.gap = "8px";
-			itemDiv.style.padding = "6px";
-			itemDiv.style.borderRadius = "4px";
-			itemDiv.style.marginBottom = "4px";
-
-			const checkbox = itemDiv.createEl("input", { type: "checkbox" });
-			checkbox.checked = currentScope.includes(item.path);
-			checkboxes.push({ element: checkbox, path: item.path });
-
-			const icon = itemDiv.createSpan({ cls: "study-scope-icon" });
-			setIcon(icon, item.type === 'folder' ? "folder" : "file-text");
-
-			const label = itemDiv.createSpan({ 
-				text: item.name,
-				cls: "study-scope-label"
-			});
-			label.style.fontSize = "14px";
-			label.style.cursor = "pointer";
-			label.addEventListener('click', () => {
-				checkbox.checked = !checkbox.checked;
-			});
-
-			const pathSpan = itemDiv.createSpan({ 
-				text: `(${item.path})`,
-				cls: "study-scope-path"
-			});
-			pathSpan.style.fontSize = "12px";
-			pathSpan.style.color = "var(--text-muted)";
-			pathSpan.style.marginLeft = "auto";
-
-			// 悬停效果
-			itemDiv.addEventListener('mouseenter', () => {
-				itemDiv.style.backgroundColor = "var(--background-modifier-hover)";
-			});
-			itemDiv.addEventListener('mouseleave', () => {
-				itemDiv.style.backgroundColor = "transparent";
-			});
-		});
-
-		// 全选/取消全选按钮
-		const selectAllContainer = content.createDiv();
-		selectAllContainer.style.display = "flex";
-		selectAllContainer.style.gap = "10px";
-		selectAllContainer.style.marginBottom = "20px";
-
-		const selectAllBtn = selectAllContainer.createEl("button", { text: "Select All" });
-		selectAllBtn.style.fontSize = "12px";
-		selectAllBtn.addEventListener('click', () => {
-			checkboxes.forEach(cb => cb.element.checked = true);
-		});
-
-		const selectNoneBtn = selectAllContainer.createEl("button", { text: "Select None" });
-		selectNoneBtn.style.fontSize = "12px";
-		selectNoneBtn.addEventListener('click', () => {
-			checkboxes.forEach(cb => cb.element.checked = false);
-		});
-
-		// 按钮容器
-		const buttonContainer = content.createDiv();
-		buttonContainer.style.display = "flex";
-		buttonContainer.style.justifyContent = "flex-end";
-		buttonContainer.style.gap = "10px";
-
-		const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
-		cancelButton.addEventListener('click', () => modal.close());
-
-		const saveButton = buttonContainer.createEl("button", { text: "Save" });
-		saveButton.addClass("mod-cta");
-		saveButton.addEventListener('click', () => {
-			const selectedPaths = checkboxes
-				.filter(cb => cb.element.checked)
-				.map(cb => cb.path);
-
-			tempConfig.studyScope = selectedPaths;
-			
-			new Notice(`Study scope updated: ${selectedPaths.length} items selected`);
-			modal.close();
-		});
-
-		modal.open();
-	}
-
-	// 渲染统计页面
-	private async renderStatisticsView(container: Element) {
-		if (!this.flashcardManager) {
-			// 获取主插件的闪卡管理器实例
-			const plugin = (this.app as any).plugins?.getPlugin('obsidian-note-definitions') as any;
-			if (plugin?.flashcardManager) {
-				this.flashcardManager = plugin.flashcardManager;
-			} else {
-				this.flashcardManager = new FlashcardManager(this.app);
-			}
-		}
-
-		const statsContainer = container.createDiv({ cls: "statistics-view-container" });
-		
-		// 获取统计数据
-		const stats = await this.flashcardManager!.getStats();
-		
-		// 页面标题和学习建议合并
-		// const titleSection = statsContainer.createDiv({ cls: "statistics-title-section" });
-		// const suggestion = await this.generateStudySuggestion(stats);
-		// const titleHeading = this.createIconHeading(titleSection, "h1", "bar-chart-2", "Learning Statistics Dashboard");
-		// const suggestionText = titleSection.createEl("p", { cls: "statistics-subtitle" });
-		// suggestionText.textContent = suggestion;
-
-		// 卡片状态分布
-		const cardsSection = statsContainer.createDiv({ cls: "dashboard-section" });
-		this.createIconHeading(cardsSection, "h3", "book-open", "Card Distribution");
-		const cardsGrid = cardsSection.createDiv({ cls: "dashboard-stats-grid" });
-		cardsGrid.innerHTML = `
-				<div class="dashboard-stat-card new">
-					<div class="stat-number">${stats.newCards}</div>
-					<div class="stat-label">New</div>
-				</div>
-				<div class="dashboard-stat-card learning">
-					<div class="stat-number">${stats.learningCards}</div>
-					<div class="stat-label">Learning</div>
-				</div>
-				<div class="dashboard-stat-card review">
-					<div class="stat-number">${stats.reviewCards}</div>
-					<div class="stat-label">Review</div>
-				</div>
-				<div class="dashboard-stat-card graduated">
-					<div class="stat-number">${stats.graduatedCards}</div>
-					<div class="stat-label">Graduated</div>
-				</div>
-			`;
-
-		// 今日学习概览
-		const todaySection = statsContainer.createDiv({ cls: "dashboard-section" });
-		this.createIconHeading(todaySection, "h3", "calendar", "Today's Progress");
-		const todayGrid = todaySection.createDiv({ cls: "dashboard-stats-grid" });
-		todayGrid.innerHTML = `
-				<div class="dashboard-stat-card">
-					<div class="stat-number">${stats.todayNewCards}</div>
-					<div class="stat-label">New Cards</div>
-				</div>
-				<div class="dashboard-stat-card">
-					<div class="stat-number">${stats.todayReviewCards}</div>
-					<div class="stat-label">Reviews</div>
-				</div>
-				<div class="dashboard-stat-card">
-					<div class="stat-number">${stats.todayNewCards + stats.todayReviewCards}</div>
-					<div class="stat-label">Total Studied</div>
-				</div>
-			`;
-
-		// 创建图表双列布局区域
-		const chartsSection = statsContainer.createDiv({ cls: "dashboard-section" });
-		this.createIconHeading(chartsSection, "h3", "bar-chart-3", "Data Visualization");
-		const chartsRow = chartsSection.createDiv({ cls: "charts-row" });
-		
-		// 卡片状态分布柱状图
-		const cardChartContainer = chartsRow.createDiv({ cls: "chart-container" });
-		cardChartContainer.innerHTML = `<h4 style="margin: 0 0 15px 0; font-size: 16px; color: var(--text-normal);">Card Status Distribution</h4>`;
-		const cardCanvas = cardChartContainer.createEl("canvas", { cls: "statistics-chart" });
-		await this.createCardDistributionChart(cardCanvas, stats);
-
-		// 最近7天学习历史柱状图（放在同一行的右侧）
-		const historyChartContainer = chartsRow.createDiv({ cls: "chart-container" });
-		historyChartContainer.innerHTML = `<h4 style="margin: 0 0 15px 0; font-size: 16px; color: var(--text-normal);">Recent 7 Days Progress</h4>`;
-		const historyCanvas = historyChartContainer.createEl("canvas", { cls: "statistics-chart" });
-		await this.createWeeklyProgressChart(historyCanvas, stats);
-		
-		// 最近7天学习历史详细数据
-		// const historySection = statsContainer.createDiv({ cls: "dashboard-section" });
-		// this.createIconHeading(historySection, "h3", "trending-up", "Recent 7 Days Details");
-		
-		// const recentSessions = stats.studySessions.slice(-7);
-		// const historyGrid = historySection.createDiv({ cls: "dashboard-history-grid" });
-		
-		// // 确保显示最近7天，即使某些天没有学习记录
-		// const today = new Date();
-		// for (let i = 6; i >= 0; i--) {
-		// 	const date = new Date(today);
-		// 	date.setDate(date.getDate() - i);
-		// 	const dateStr = date.toISOString().split('T')[0];
-			
-		// 	const session = recentSessions.find(s => s.date === dateStr);
-		// 	const newCards = session?.newCardsStudied || 0;
-		// 	const reviewCards = session?.reviewCardsStudied || 0;
-		// 	const dayCard = historyGrid.createDiv({ cls: "dashboard-day-card" });
-		// 	dayCard.innerHTML = `
-		// 		<div class="day-date">${date.getMonth() + 1}/${date.getDate()}</div>
-		// 		<div class="day-stats">
-		// 			<div class="day-new">${newCards}N</div>
-		// 			<div class="day-review">${reviewCards}R</div>
-		// 		</div>
-		// 	`;
-		// }
-
-		// 学习成就和趋势
-		const achievementSection = statsContainer.createDiv({ cls: "dashboard-section" });
-		this.createIconHeading(achievementSection, "h3", "trophy", "Learning Achievements");
-		const achievementGrid = achievementSection.createDiv({ cls: "dashboard-stats-grid" });
-		achievementGrid.innerHTML = `
-				<div class="dashboard-stat-card streak">
-					<div class="stat-number">${stats.currentStreak || 0}</div>
-					<div class="stat-label">Current Streak</div>
-				</div>
-				<div class="dashboard-stat-card streak">
-					<div class="stat-number">${stats.longestStreak || 0}</div>
-					<div class="stat-label">Longest Streak</div>
-				</div>
-				<div class="dashboard-stat-card streak">
-					<div class="stat-number">${stats.weeklyAverage || 0}</div>
-					<div class="stat-label">Weekly Average</div>
-				</div>
-				<div class="dashboard-stat-card streak">
-					<div class="stat-number">${Math.round((stats.averageAccuracy || 0) * 100)}%</div>
-					<div class="stat-label">Accuracy</div>
-				</div>
-			`;
-	}
-
-	// 创建卡片状态分布柱状图
-	private async createCardDistributionChart(canvas: HTMLCanvasElement, stats: any) {
-		try {
-			// 动态导入Chart.js
-			const Chart = await this.loadChartJS();
-			
-			const ctx = canvas.getContext('2d');
-			if (!ctx) return;
-
-			new Chart(ctx, {
-				type: 'bar',
-				data: {
-					labels: ['New', 'Learning', 'Review', 'Graduated'],
-					datasets: [{
-						label: 'Number of Cards',
-						data: [stats.newCards, stats.learningCards, stats.reviewCards, stats.graduatedCards],
-						backgroundColor: [
-							'rgba(59, 130, 246, 0.8)',  // Blue for New
-							'rgba(245, 158, 11, 0.8)',  // Orange for Learning
-							'rgba(34, 197, 94, 0.8)',   // Green for Review
-							'rgba(168, 85, 247, 0.8)'   // Purple for Graduated
-						],
-						borderColor: [
-							'rgba(59, 130, 246, 1)',
-							'rgba(245, 158, 11, 1)',
-							'rgba(34, 197, 94, 1)',
-							'rgba(168, 85, 247, 1)'
-						],
-						borderWidth: 1
-					}]
-				},
-				options: {
-					responsive: true,
-					maintainAspectRatio: false,
-					plugins: {
-						legend: {
-							display: false
-						}
-					},
-					scales: {
-						y: {
-							beginAtZero: true,
-							ticks: {
-								stepSize: 1
-							}
-						}
-					}
-				}
-			});
-		} catch (error) {
-			console.error('Failed to create card distribution chart:', error);
-			canvas.parentElement?.createDiv({ 
-				text: 'Chart loading failed. Please check your internet connection.',
-				cls: 'chart-error'
-			});
-		}
-	}
-
-	// 创建最近7天学习进度柱状图
-	private async createWeeklyProgressChart(canvas: HTMLCanvasElement, stats: any) {
-		try {
-			const Chart = await this.loadChartJS();
-			
-			const ctx = canvas.getContext('2d');
-			if (!ctx) return;
-
-			// 准备最近7天的数据
-			const today = new Date();
-			const labels: string[] = [];
-			const newCardsData: number[] = [];
-			const reviewCardsData: number[] = [];
-
-			for (let i = 6; i >= 0; i--) {
-				const date = new Date(today);
-				date.setDate(date.getDate() - i);
-				const dateStr = date.toISOString().split('T')[0];
-				
-				labels.push(`${date.getMonth() + 1}/${date.getDate()}`);
-				
-				const session = stats.studySessions.find((s: any) => s.date === dateStr);
-				newCardsData.push(session?.newCardsStudied || 0);
-				reviewCardsData.push(session?.reviewCardsStudied || 0);
-			}
-
-			new Chart(ctx, {
-				type: 'bar',
-				data: {
-					labels: labels,
-					datasets: [
-						{
-							label: 'New Cards',
-							data: newCardsData,
-							backgroundColor: 'rgba(59, 130, 246, 0.8)',
-							borderColor: 'rgba(59, 130, 246, 1)',
-							borderWidth: 1
-						},
-						{
-							label: 'Review Cards',
-							data: reviewCardsData,
-							backgroundColor: 'rgba(34, 197, 94, 0.8)',
-							borderColor: 'rgba(34, 197, 94, 1)',
-							borderWidth: 1
-						}
-					]
-				},
-				options: {
-					responsive: true,
-					maintainAspectRatio: false,
-					plugins: {
-						legend: {
-							position: 'top'
-						}
-					},
-					scales: {
-						x: {
-							stacked: true
-						},
-						y: {
-							stacked: true,
-							beginAtZero: true,
-							ticks: {
-								stepSize: 1
-							}
-						}
-					}
-				}
-			});
-		} catch (error) {
-			console.error('Failed to create weekly progress chart:', error);
-			canvas.parentElement?.createDiv({ 
-				text: 'Chart loading failed. Please check your internet connection.',
-				cls: 'chart-error'
-			});
-		}
-	}
-
-	// 动态加载Chart.js
-	private async loadChartJS(): Promise<any> {
-		// 检查是否已经加载过Chart.js
-		if ((window as any).Chart) {
-			return (window as any).Chart;
-		}
-
-		try {
-			// 通过创建script标签的方式加载Chart.js
-			return new Promise((resolve, reject) => {
-				const script = document.createElement('script');
-				script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js';
-				script.onload = () => {
-					if ((window as any).Chart) {
-						resolve((window as any).Chart);
-					} else {
-						reject(new Error('Chart.js not found on window'));
-					}
-				};
-				script.onerror = () => reject(new Error('Failed to load Chart.js script'));
-				document.head.appendChild(script);
-			});
-		} catch (error) {
-			console.error('Failed to load Chart.js:', error);
-			throw new Error('Chart.js loading failed');
-		}
-	}
-
-	// 生成学习建议
-	private async generateStudySuggestion(stats: any): Promise<string> {
-		// 尝试使用AI生成学习建议
-		const aiSuggestion = await this.tryGenerateAISuggestion(stats);
-		if (aiSuggestion) {
-			return aiSuggestion;
-		}
-		
-		// 如果AI不可用，使用默认逻辑
-		const totalStudied = stats.todayNewCards + stats.todayReviewCards;
-		const currentStreak = stats.currentStreak || 0;
-		const accuracy = stats.averageAccuracy || 0;
-		const weeklyAverage = stats.weeklyAverage || 0;
-		
-		// 基于多个因素生成建议
-		if (totalStudied === 0) {
-			if (currentStreak > 0) {
-				return `Don't break your ${currentStreak}-day streak! Start with a few cards to keep the momentum going.`;
-			} else {
-				return "Ready to start your learning journey? Begin with some new cards!";
-			}
-		}
-		
-		if (currentStreak >= 7) {
-			return `Amazing! You've maintained a ${currentStreak}-day learning streak. You're building an excellent habit!`;
-		}
-		
-		if (accuracy < 0.6 && totalStudied > 5) {
-			return "Consider reviewing some cards more carefully. Quality over quantity leads to better retention!";
-		}
-		
-		if (totalStudied < weeklyAverage * 0.7) {
-			return `You usually study ${weeklyAverage.toFixed(1)} cards daily. Try to reach your usual pace!`;
-		}
-		
-		if (totalStudied >= 30) {
-			return "Excellent work! You're really committed to learning. Consider taking a short break if needed.";
-		}
-		
-		if (totalStudied >= 20) {
-			return "Great progress! You're building a solid learning habit.";
-		}
-		
-		if (totalStudied >= 10) {
-			return "Good momentum! Keep up the consistent practice.";
-		}
-		
-		return "You're making progress! Every card studied brings you closer to mastery.";
-	}
-
-	// 尝试使用AI生成学习建议
-	private async tryGenerateAISuggestion(stats: any): Promise<string | null> {
-		try {
-			// 检查AI配置是否可用
-			const settings = getSettings();
-			const aiConfig = settings.aiConfig;
-			
-			if (!aiConfig || !aiConfig.currentProvider || !aiConfig.providers) {
-				return null;
-			}
-
-			const currentProviderConfig = aiConfig.providers[aiConfig.currentProvider as keyof typeof aiConfig.providers];
-			if (!currentProviderConfig || !currentProviderConfig.apiKey) {
-				return null;
-			}
-
-			// 准备统计数据摘要
-			const totalStudied = stats.todayNewCards + stats.todayReviewCards;
-			const currentStreak = stats.currentStreak || 0;
-			const accuracy = Math.round((stats.averageAccuracy || 0) * 100);
-			const weeklyAverage = stats.weeklyAverage || 0;
-
-			// 构建AI提示
-			const prompt = `Based on the following learning statistics, generate a personalized and encouraging study suggestion (in Chinese, keep it concise, around 30-50 characters):
-
-Statistics:
-- Today studied: ${totalStudied} cards (${stats.todayNewCards} new, ${stats.todayReviewCards} review)
-- Current streak: ${currentStreak} days
-- Accuracy: ${accuracy}%
-- Weekly average: ${weeklyAverage} cards/day
-- Total cards: ${stats.totalCards}
-- Card distribution: ${stats.newCards} new, ${stats.learningCards} learning, ${stats.reviewCards} review, ${stats.graduatedCards} graduated
-
-Please provide a motivational and actionable suggestion that considers their current progress and encourages continued learning.`;
-
-			// 使用AI服务生成建议
-			const aiService = (this.app as any).plugins?.getPlugin('obsidian-note-definitions')?.aiService;
-			if (!aiService) {
-				return null;
-			}
-
-			const response = await aiService.generateText(prompt);
-			if (response && response.trim()) {
-				return response.trim();
-			}
-
-			return null;
-		} catch (error) {
-			console.log('AI suggestion generation failed:', error);
-			return null;
-		}
 	}
 }

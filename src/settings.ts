@@ -81,19 +81,6 @@ export interface AIConfig {
 	fileAliasPromptMap?: Record<string, string>;   // 文件路径 -> 别名prompt (for consolidated)
 }
 
-export enum ViewMode {
-	Manager = "manager",
-	Flashcard = "flashcard",
-	Statistics = "browse"
-}
-
-export interface FlashcardConfig {
-	dailyNewCards: number;
-	dailyReviewLimit: number;
-	enableSM2Algorithm: boolean;
-	studyScope: string[]; // 选择的文件/文件夹路径
-}
-
 export interface Settings {
 	enableInReadingView: boolean;
 	enableSpellcheck: boolean;
@@ -102,8 +89,6 @@ export interface Settings {
 	defFileParseConfig: DefFileParseConfig;
 	defPopoverConfig: DefinitionPopoverConfig;
 	aiConfig?: AIConfig;
-	flashcardConfig?: FlashcardConfig;
-	defaultViewMode?: string; // 默认视图模式：'manager', 'flashcard', 'browse'
 }
 
 export const DEFAULT_DEF_FOLDER = "definitions"
@@ -165,14 +150,7 @@ export const DEFAULT_SETTINGS: Partial<Settings> = {
 		filePromptMap: {},
 		folderAliasPromptMap: {},
 		fileAliasPromptMap: {}
-	},
-	flashcardConfig: {
-		dailyNewCards: 20,
-		dailyReviewLimit: 100,
-		enableSM2Algorithm: true,
-		studyScope: []
-	},
-	defaultViewMode: 'manager' // 默认为Definition Manager模式
+	}
 }
 
 export class SettingsTab extends PluginSettingTab {
@@ -293,20 +271,6 @@ export class SettingsTab extends PluginSettingTab {
 					await this.saveCallback();
 				});
 			});
-
-		// new Setting(containerEl)
-		// 	.setName("Default view mode for Definition Manager")
-		// 	.setDesc("Choose which mode to activate by default when opening the Definition Manager view")
-		// 	.addDropdown(component => {
-		// 		component.addOption('manager', 'Definition Manager');
-		// 		component.addOption('flashcard', 'Flashcard Study');
-		// 		component.addOption('browse', 'Browse Mode');
-		// 		component.setValue(this.settings.defaultViewMode || 'manager');
-		// 		component.onChange(async value => {
-		// 			this.settings.defaultViewMode = value;
-		// 			await this.saveCallback();
-		// 		});
-		// 	});
 
 		new Setting(containerEl)
 			.setHeading()

@@ -1,6 +1,5 @@
 import { WorkspaceLeaf, TFile, setIcon, MarkdownView, Notice, MarkdownRenderer, DropdownComponent } from "obsidian";
 import { DefinitionManagerView } from "src/editor/definition-manager-view";
-import { ViewMode } from "src/settings";
 import { getDefFileManager } from "src/core/def-file-manager";
 import { AddDefinitionModal } from "src/editor/add-modal";
 import { DefFileType } from "src/core/file-type";
@@ -30,8 +29,6 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 	async onOpen() {
 		this.isViewActive = true;
-		this.currentViewMode = ViewMode.Manager;
-		this.browseMode = 'flashcard';
 
 		this.registerEvent(
 			this.app.workspace.on('active-leaf-change', async () => {
