@@ -3,6 +3,7 @@ import { requestUrl } from "obsidian";
 // 从settings.ts导入常量和接口
 import { DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT, AIConfig } from "../settings";
 import { t } from "../i18n";
+import { normalizeBaseUrl } from "../util/url";
 
 const MAX_TOKENS = 2000;
 const MAX_ALIAS_TOKENS = 100;
@@ -92,16 +93,6 @@ export class AIService {
 		}
 	}
 
-	private normalizeBaseUrl(url: string): string {
-		url = url.trim();
-		url = url.replace(/\/v1\/?$/, "");   // 去掉末尾 /v1
-		url = url.replace(/\/+$/, "");       // 去掉多余斜杠
-		if (!/^https?:\/\//i.test(url)) {
-			url = "https://" + url;
-		}
-		return url;
-	}
-
 	async generateDefinition(word: string, fileType?: string, path?: string): Promise<string> {
 		const currentProvider = this.config.currentProvider || 'openai';
 		const providerConfig = this.config.providers?.[currentProvider as keyof typeof this.config.providers];
@@ -140,7 +131,7 @@ export class AIService {
 
 		} else if (currentProvider === 'ollama') {
 
-			const base = this.normalizeBaseUrl(providerConfig?.baseUrl || '');
+			const base = normalizeBaseUrl(providerConfig?.baseUrl || '');
 			apiUrl = `${base}/api/generate`;
 			headers = { 'Content-Type': 'application/json' };
 			requestBody = {
@@ -152,7 +143,7 @@ export class AIService {
 
 		} else if (currentProvider === 'custom' && providerConfig?.baseUrl) {
 
-			const base = this.normalizeBaseUrl(providerConfig.baseUrl);
+			const base = normalizeBaseUrl(providerConfig.baseUrl);
 			if (base.endsWith("/chat/completions")) {
 				apiUrl = base;
 			} else {
@@ -172,7 +163,7 @@ export class AIService {
 			};
 
 		} else if (currentProvider === 'zhipu') {
-			apiUrl = 'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions';
+			apiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 			headers = {
 				'Authorization': `Bearer ${providerConfig?.apiKey}`,
 				'Content-Type': 'application/json',
@@ -292,7 +283,7 @@ export class AIService {
 				temperature: 0.3
 			};
 		} else if (currentProvider === 'zhipu') {
-			apiUrl = 'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions';
+			apiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 			headers = {
 				'Authorization': `Bearer ${providerConfig?.apiKey}`,
 				'Content-Type': 'application/json',
@@ -314,7 +305,7 @@ export class AIService {
 				generationConfig: { temperature: 0.3, maxOutputTokens: MAX_ALIAS_TOKENS }
 			};
 		} else if (currentProvider === 'ollama') {
-			const base = this.normalizeBaseUrl(providerConfig?.baseUrl || '');
+			const base = normalizeBaseUrl(providerConfig?.baseUrl || '');
 			apiUrl = `${base}/api/generate`;
 			headers = { 'Content-Type': 'application/json' };
 			requestBody = {
@@ -324,7 +315,7 @@ export class AIService {
 				options: { temperature: 0.3, num_predict: MAX_ALIAS_TOKENS }
 			};
 		} else if (currentProvider === 'custom' && providerConfig?.baseUrl) {
-			const base = this.normalizeBaseUrl(providerConfig.baseUrl);
+			const base = normalizeBaseUrl(providerConfig.baseUrl);
 			if (base.endsWith("/chat/completions")) {
 				apiUrl = base;
 			} else {

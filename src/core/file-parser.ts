@@ -3,6 +3,7 @@ import { AtomicDefParser } from "./atomic-def-parser";
 import { ConsolidatedDefParser } from "./consolidated-def-parser";
 import { DefFileType } from "./file-type";
 import { Definition } from "./model";
+import { getSettings } from "../settings";
 
 export const DEF_TYPE_FM = "def-type";
 
@@ -24,11 +25,6 @@ export class FileParser {
 		}
 
 		this.defFileType = this.getDefFileType(fileContent);
-
-		// 如果文件没有明确的def-type属性，跳过处理
-		if (!this.defFileType) {
-			return [];
-		}
 
 		switch (this.defFileType) {
 			case DefFileType.Consolidated: {
@@ -72,6 +68,8 @@ export class FileParser {
 			}
 		}
 
-		return undefined;
+		// Fall back to settings default file type
+		const settings = getSettings();
+		return settings.defFileParseConfig?.defaultFileType ?? DefFileType.Consolidated;
 	}
 }

@@ -5,6 +5,7 @@ import { DefFileType } from "src/core/file-type";
 import { Definition } from "src/core/model";
 import { EditDefinitionModal } from "src/editor/edit-modal";
 import { getLocale, t } from "src/i18n";
+import { debounce } from "src/util/debounce";
 export const DEFINITION_MANAGER_VIEW_TYPE = "definition-manager-view";
 
 interface DefinitionWithSource extends Definition {
@@ -443,10 +444,13 @@ export class DefinitionManagerView extends ItemView {
 			attr: { placeholder: t("Search definitions...") }
 		});
 		searchInput.value = this.searchTerm;
-		searchInput.addEventListener("input", (e) => {
-			this.searchTerm = (e.target as HTMLInputElement).value;
+		const debouncedSearch = debounce((value: string) => {
+			this.searchTerm = value;
 			this.applyFilters();
 			this.updateDefinitionList();
+		}, 250);
+		searchInput.addEventListener("input", (e) => {
+			debouncedSearch((e.target as HTMLInputElement).value);
 		});
 
 		/* 2. Type dropdown */
@@ -720,27 +724,39 @@ export class DefinitionManagerView extends ItemView {
         this.setIconWithLabel(nextBtn, "chevron-right");
         nextBtn.setAttribute("aria-label", t("Next"));
 
-        // 缩略图列表（只创建一次）
+        // 缩略图列表容器
         const thumbStrip = list.createDiv({ cls: "def-gallery-thumbs" });
-        this.filteredDefinitions.forEach((def, index) => {
-            const thumb = thumbStrip.createDiv({
-                cls: `def-gallery-thumb ${index === this.galleryIndex ? 'active' : ''}`
-            });
 
-            const thumbWord = thumb.createDiv({ cls: "def-gallery-thumb-word" });
-            thumbWord.setText(def.word);
+        // 分块异步渲染缩略图，避免大量 DOM 一次性阻塞主线程
+        const CHUNK_SIZE = 50;
+        const renderThumbChunk = (startIndex: number) => {
+            const endIndex = Math.min(startIndex + CHUNK_SIZE, this.filteredDefinitions.length);
+            for (let index = startIndex; index < endIndex; index++) {
+                const def = this.filteredDefinitions[index];
+                const thumb = thumbStrip.createDiv({
+                    cls: `def-gallery-thumb ${index === this.galleryIndex ? 'active' : ''}`
+                });
 
-            const thumbPreview = thumb.createDiv({ cls: "def-gallery-thumb-preview" });
-            const previewText = def.definition.substring(0, 80).replace(/[#*`]/g, '');
-            thumbPreview.setText(previewText + (def.definition.length > 80 ? '...' : ''));
+                const thumbWord = thumb.createDiv({ cls: "def-gallery-thumb-word" });
+                thumbWord.setText(def.word);
 
-            thumb.addEventListener("click", () => {
-                this.galleryIndex = index;
-                this.updateGallerySelection(mainCardArea, counter, prevBtn, nextBtn, thumbStrip);
-            });
-        });
+                const thumbPreview = thumb.createDiv({ cls: "def-gallery-thumb-preview" });
+                const previewText = def.definition.substring(0, 80).replace(/[#*`]/g, '');
+                thumbPreview.setText(previewText + (def.definition.length > 80 ? '...' : ''));
 
-        // 更新选中状态的局部方法（不重建缩略图条）
+                thumb.addEventListener("click", () => {
+                    this.galleryIndex = index;
+                    this.updateGallerySelection(mainCardArea, counter, prevBtn, nextBtn, thumbStrip);
+                });
+            }
+
+            // 还有更多缩略图，下一帧继续
+            if (endIndex < this.filteredDefinitions.length) {
+                requestAnimationFrame(() => renderThumbChunk(endIndex));
+            }
+        };
+
+        // 更新选中状态的局部方法
         const goTo = (delta: number) => {
             const newIndex = this.galleryIndex + delta;
             if (newIndex >= 0 && newIndex < this.filteredDefinitions.length) {
@@ -752,11 +768,12 @@ export class DefinitionManagerView extends ItemView {
         prevBtn.addEventListener("click", () => goTo(-1));
         nextBtn.addEventListener("click", () => goTo(1));
 
-        // 初始渲染
+        // 先渲染主卡片（用户立即看到内容），缩略图分块异步渲染
         this.updateGallerySelection(mainCardArea, counter, prevBtn, nextBtn, thumbStrip);
+        requestAnimationFrame(() => renderThumbChunk(0));
     }
 
-    private updateGallerySelection(
+    private async updateGallerySelection(
         mainCardArea: HTMLElement,
         counter: HTMLElement,
         prevBtn: HTMLButtonElement,
@@ -767,7 +784,7 @@ export class DefinitionManagerView extends ItemView {
         mainCardArea.empty();
         const currentDef = this.filteredDefinitions[this.galleryIndex];
         if (currentDef) {
-            this.createGalleryMainCard(mainCardArea, currentDef);
+            await this.createGalleryMainCard(mainCardArea, currentDef);
         }
 
         // 更新计数器
@@ -777,11 +794,16 @@ export class DefinitionManagerView extends ItemView {
         prevBtn.disabled = this.galleryIndex === 0;
         nextBtn.disabled = this.galleryIndex >= this.filteredDefinitions.length - 1;
 
-        // 更新缩略图激活状态
-        const thumbs = thumbStrip.querySelectorAll('.def-gallery-thumb');
-        thumbs.forEach((thumb, index) => {
-            thumb.toggleClass('active', index === this.galleryIndex);
-        });
+        // 更新缩略图激活状态（只切换新旧两个，不全量遍历）
+        const prevActive = thumbStrip.querySelector('.def-gallery-thumb.active') as HTMLElement | null;
+        if (prevActive) {
+            prevActive.removeClass('active');
+        }
+        // 直接通过 index 定位当前缩略图
+        const currentThumb = thumbStrip.children[this.galleryIndex] as HTMLElement | undefined;
+        if (currentThumb && currentThumb.addClass) {
+            currentThumb.addClass('active');
+        }
 
         // 横向滚动缩略图条到选中项（不影响纵向滚动）
         const activeThumb = thumbStrip.querySelector('.def-gallery-thumb.active') as HTMLElement | null;
@@ -791,7 +813,7 @@ export class DefinitionManagerView extends ItemView {
         }
     }
 
-    private createGalleryMainCard(container: HTMLElement, def: DefinitionWithSource): HTMLElement {
+    private async createGalleryMainCard(container: HTMLElement, def: DefinitionWithSource): Promise<HTMLElement> {
         const card = container.createDiv({ cls: "def-gallery-card" });
 
         // 头部
@@ -835,12 +857,13 @@ export class DefinitionManagerView extends ItemView {
 
         // 完整定义
         const definitionEl = card.createDiv({ cls: "def-gallery-card-definition" });
-        MarkdownRenderer.render(
+        const galleryComponent = new Component();
+        await MarkdownRenderer.render(
             this.app,
             def.definition,
             definitionEl,
             def.sourceFile.path,
-            new Component()
+            galleryComponent
         );
 
         // 文件信息
@@ -855,17 +878,22 @@ export class DefinitionManagerView extends ItemView {
     protected renderBatch(list: HTMLElement, startIndex: number) {
         const batch = this.filteredDefinitions.slice(startIndex, startIndex + this.pageSize);
         const cards: HTMLElement[] = [];
-        
+
         batch.forEach(def => {
             const card = this.createDefinitionCard(list, def);
             cards.push(card);
         });
 
         this.waitForCardsToRender(cards).then(() => {
-            // Re-layout all cards
-            const allCards = Array.from(list.querySelectorAll('.def-card')) as HTMLElement[];
-            this.layoutMasonry(list, allCards);
-            
+            if (startIndex === 0) {
+                // First batch: full layout
+                const allCards = Array.from(list.querySelectorAll('.def-card')) as HTMLElement[];
+                this.layoutMasonry(list, allCards);
+            } else {
+                // Incremental: only position new cards, preserve existing column heights
+                this.layoutMasonryIncremental(list, cards);
+            }
+
             // Setup lazy loading if more items exist
             if (startIndex + this.pageSize < this.filteredDefinitions.length) {
                 this.setupLazyLoading(list);
@@ -910,29 +938,12 @@ export class DefinitionManagerView extends ItemView {
         this.renderBatch(list, startIndex);
     }
 
-    // 等待所有卡片渲染完成
+    // 等待所有卡片的异步Markdown渲染完成
     protected async waitForCardsToRender(cards: HTMLElement[]): Promise<void> {
-        return new Promise((resolve) => {
-            // 等待多个渲染周期确保MarkdownRenderer完成
-            let checkCount = 0;
-            const maxChecks = 10;
-
-            const checkRendering = () => {
-                checkCount++;
-
-                // 检查所有卡片是否有实际高度
-                const allRendered = cards.every(card => card.offsetHeight > 0);
-
-                if (allRendered || checkCount >= maxChecks) {
-                    resolve();
-                } else {
-                    requestAnimationFrame(checkRendering);
-                }
-            };
-
-            // 开始检查
-            requestAnimationFrame(checkRendering);
-        });
+        const renderPromises = cards
+            .map(card => (card as any)._renderPromise as Promise<void> | undefined)
+            .filter((p): p is Promise<void> => !!p);
+        await Promise.all(renderPromises);
     }
 
 	// 瀑布流布局核心方法
@@ -987,6 +998,46 @@ export class DefinitionManagerView extends ItemView {
 
         // 设置ResizeObserver监听容器大小变化
         this.setupResizeObserver(container, cards);
+    }
+
+    // Incremental layout: position only new cards using existing columnHeights
+    private layoutMasonryIncremental(container: HTMLElement, newCards: HTMLElement[]) {
+        if (!this.isViewActive || newCards.length === 0) return;
+        if (this.columnHeights.length === 0) {
+            // Fallback to full layout if state was lost
+            const allCards = Array.from(container.querySelectorAll('.def-card')) as HTMLElement[];
+            this.layoutMasonry(container, allCards);
+            return;
+        }
+
+        const computed = window.getComputedStyle(container);
+        const paddingLeft = parseFloat(computed.paddingLeft) || 0;
+        const paddingTop = parseFloat(computed.paddingTop) || 0;
+        const paddingBottom = parseFloat(computed.paddingBottom) || 0;
+
+        newCards.forEach(card => {
+            const shortestColumnIndex = this.getShortestColumnIndex();
+            const x = shortestColumnIndex * (this.cardWidth + this.gap);
+            const y = this.columnHeights[shortestColumnIndex];
+            const cardHeight = card.offsetHeight;
+
+            card.style.position = 'absolute';
+            card.style.left = `${paddingLeft + x}px`;
+            card.style.top = `${paddingTop + y}px`;
+            card.style.width = `${this.cardWidth}px`;
+            card.style.marginBottom = '0';
+
+            this.columnHeights[shortestColumnIndex] += cardHeight + this.gap;
+        });
+
+        const maxHeight = Math.max(...this.columnHeights);
+        container.style.height = `${maxHeight + paddingTop + paddingBottom}px`;
+
+        if (this.loadingSentinel && container.contains(this.loadingSentinel)) {
+            this.loadingSentinel.style.position = 'absolute';
+            this.loadingSentinel.style.top = `${maxHeight + paddingTop}px`;
+            container.style.height = `${maxHeight + paddingTop + paddingBottom + 40}px`;
+        }
     }
 
     // 计算列数和卡片宽度
@@ -1144,7 +1195,6 @@ export class DefinitionManagerView extends ItemView {
 		editBtn.title = t("Edit");
 		editBtn.addEventListener('click', (e) => {
 			e.stopPropagation();
-			console.log('Edit button clicked for:', def.word);
 			this.editDefinition(def);
 		});
 
@@ -1165,7 +1215,6 @@ export class DefinitionManagerView extends ItemView {
 		deleteBtn.style.color = "red";
 		deleteBtn.addEventListener('click', (e) => {
 			e.stopPropagation();
-			console.log('Delete button clicked for:', def.word);
 			this.deleteDefinition(def);
         });
 
@@ -1223,14 +1272,19 @@ export class DefinitionManagerView extends ItemView {
             }
         };
 
-        const renderDefinition = () => {
+        let renderComponent: Component | null = null;
+        const renderDefinition = async () => {
+            if (renderComponent) {
+                renderComponent.unload();
+            }
             definitionEl.empty();
-            MarkdownRenderer.render(
+            renderComponent = new Component();
+            await MarkdownRenderer.render(
                 this.app,
                 expanded || !hasLongContent ? def.definition : truncatedText,
                 definitionEl,
                 def.sourceFile.path,
-                new Component()
+                renderComponent
             );
 
             if (hasLongContent) {
@@ -1245,7 +1299,8 @@ export class DefinitionManagerView extends ItemView {
             applySidebarCardHeight();
         };
 
-        renderDefinition();
+        const renderPromise = renderDefinition();
+        (card as any)._renderPromise = renderPromise;
 
         const toggleExpand = () => {
             expanded = !expanded;
@@ -1286,7 +1341,6 @@ export class DefinitionManagerView extends ItemView {
 
 	// 使用现有的EditDefinitionModal
 	private async editDefinition(def: DefinitionWithSource) {
-		console.log('editDefinition called for:', def.word);
 		try {
 			// 创建正确的Definition对象传递给EditDefinitionModal
 			const defForEdit: Definition = {
@@ -1320,14 +1374,11 @@ export class DefinitionManagerView extends ItemView {
 			
 			// 监听模态窗口关闭事件，只在点击保存时才刷新列表
 			editModal.modal.onClose = async () => {
-				if (savedChanges) {
-					console.log('Definition saved, refreshing list');
-					await this.loadDefinitions();
-					this.updateDefinitionList();
-				} else {
-					console.log('No save action detected, skipping refresh');
-				}
-			};
+			if (savedChanges) {
+				await this.loadDefinitions();
+				this.updateDefinitionList();
+			}
+		};
 			
 		} catch (error) {
 			console.error('Error in editDefinition:', error);
@@ -1376,7 +1427,6 @@ export class DefinitionManagerView extends ItemView {
 
                 await updater.deleteDefinition(defToDelete);
 
-                new Notice(t("Definition deleted successfully"));
                 confirmModal.close();
 
                 // 刷新列表

@@ -44,8 +44,6 @@ export class DefManager {
 		this.markedDirty = [];
 
 		activeWindow.NoteDefinition.definitions.global = this.globalDefs;
-
-		this.loadDefinitions();
 	}
 
 	addDefFile(file: TFile) {
@@ -176,7 +174,8 @@ export class DefManager {
 	}
 
 	isDefFile(file: TFile): boolean {
-		return file.path.startsWith(this.getGlobalDefFolder())
+		const folder = this.getGlobalDefFolder();
+		return file.path === folder || file.path.startsWith(folder + '/');
 	}
 
 	reset() {
@@ -244,7 +243,11 @@ export class DefManager {
 		}
 
 		this.markedDirty = [];
-		this.buildPrefixTree();
+
+		// Only rebuild prefix tree if files actually changed
+		if (dirtyFiles.length > 0 || definitions.length > 0) {
+			this.buildPrefixTree();
+		}
 		this.lastUpdate = Date.now();
 	}
 
@@ -355,9 +358,12 @@ export class DefManager {
 export class DefinitionRepo {
 	// file name -> {definition-key -> definition}
 	fileDefMap: Map<string, Map<string, Definition>>;
+	// Flat reverse index: key -> Definition for O(1) lookups
+	private keyIndex: Map<string, Definition>;
 
 	constructor() {
 		this.fileDefMap = new Map<string, Map<string, Definition>>();
+		this.keyIndex = new Map<string, Definition>();
 	}
 
 	getMapForFile(filePath: string) {
@@ -365,20 +371,11 @@ export class DefinitionRepo {
 	}
 
 	get(key: string) {
-		for (let [_, defMap] of this.fileDefMap) {
-			const def = defMap.get(key);
-			if (def) {
-				return def;
-			}
-		}
+		return this.keyIndex.get(key);
 	}
 
 	getAllKeys(): string[] {
-		const keys: string[] = [];
-		this.fileDefMap.forEach((defMap, _) => {
-			keys.push(...defMap.keys());
-		})
-		return keys;
+		return [...this.keyIndex.keys()];
 	}
 
 	set(def: Definition) {
@@ -387,16 +384,22 @@ export class DefinitionRepo {
 			defMap = new Map<string, Definition>;
 			this.fileDefMap.set(def.file.path, defMap);
 		}
+		const fileDefMap = defMap;
 		// Prefer the first encounter over subsequent collisions
-		if (defMap.has(def.key)) {
+		if (fileDefMap.has(def.key)) {
 			return;
 		}
-		defMap.set(def.key, def);
+		fileDefMap.set(def.key, def);
+		this.keyIndex.set(def.key, def);
 
 		if (def.aliases.length > 0) {
 			def.aliases.forEach(alias => {
-				if (defMap && typeof alias === 'string' && alias.trim()) {
-					defMap.set(alias.toLowerCase(), def);
+				if (typeof alias === 'string' && alias.trim()) {
+					const aliasKey = alias.toLowerCase();
+					fileDefMap.set(aliasKey, def);
+					if (!this.keyIndex.has(aliasKey)) {
+						this.keyIndex.set(aliasKey, def);
+					}
 				}
 			});
 		}
@@ -405,17 +408,24 @@ export class DefinitionRepo {
 	clearForFile(filePath: string) {
 		const defMap = this.fileDefMap.get(filePath);
 		if (defMap) {
+			// Remove keys from reverse index
+			for (const key of defMap.keys()) {
+				this.keyIndex.delete(key);
+			}
 			defMap.clear();
 		}
 	}
 
 	clear() {
 		this.fileDefMap.clear();
+		this.keyIndex.clear();
 	}
 }
 
 export function initDefFileManager(app: App): DefManager {
 	defFileManager = new DefManager(app);
+	// Load definitions explicitly after construction
+	defFileManager.loadDefinitions();
 	return defFileManager;
 }
 

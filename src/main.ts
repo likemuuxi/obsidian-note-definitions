@@ -110,10 +110,10 @@ export default class NoteDefinition extends Plugin {
 			id: "add-definition",
 			name: t("Add definition"),
 			editorCallback: (editor) => {
-				const selectedText = editor.getSelection();
-				const addModal = new AddDefinitionModal(this.app);
-				addModal.open(selectedText);
-			}
+			const selectedText = editor.getSelection();
+			const addModal = new AddDefinitionModal(this.app, this.saveSettings.bind(this));
+			addModal.open(selectedText);
+		}
 		});
 
 		this.addCommand({
@@ -214,9 +214,9 @@ export default class NoteDefinition extends Plugin {
 						item.setTitle(t("Add definition"))
 						item.setIcon("plus")
 							.onClick(() => {
-								const addModal = new AddDefinitionModal(this.app);
-								addModal.open(editor.getSelection());
-							});
+							const addModal = new AddDefinitionModal(this.app, this.saveSettings.bind(this));
+							addModal.open(editor.getSelection());
+						});
 					});
 				}
 				return;
@@ -305,8 +305,8 @@ export default class NoteDefinition extends Plugin {
 		});
 	}
 
-	refreshDefinitions() {
-		this.defManager.loadDefinitions();
+	async refreshDefinitions() {
+		await this.defManager.loadDefinitions();
 	}
 
 	reloadUpdatedDefinitions() {

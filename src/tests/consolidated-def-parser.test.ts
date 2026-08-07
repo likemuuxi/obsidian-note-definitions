@@ -5,8 +5,10 @@ import { DefFileParseConfig } from "src/settings";
 
 const fs = require("node:fs");
 
-// Setup for test file
-const consolidatedDefData = fs.readFileSync('src/tests/def-file-samples/consolidated-definitions-test.md', 'utf8');
+// Setup for test file - strip frontmatter as parseFile does in production
+const rawData = fs.readFileSync('src/tests/def-file-samples/consolidated-definitions-test.md', 'utf8');
+const fmMatch = rawData.match(/^---\s*[\r\n]+[\s\S]*?\r?\n---\s*\r?\n?/);
+const consolidatedDefData = fmMatch ? rawData.slice(fmMatch[0].length) : rawData;
 
 const parseSettings: DefFileParseConfig = {
 	defaultFileType: DefFileType.Consolidated,

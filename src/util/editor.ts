@@ -1,8 +1,15 @@
 import { Editor } from "obsidian";
-import { getMarkedPhrases } from "src/editor/decoration";
+import { EditorView } from "@codemirror/view";
+import { definitionMarker } from "src/editor/decoration";
 
 export function getMarkedWordUnderCursor(editor: Editor) {
-	const currWord = getWordByOffset(editor.posToOffset(editor.getCursor()));
+	// @ts-expect-error - cm is not typed in Obsidian's Editor
+	const view = editor.cm as EditorView;
+	const plugin = view?.plugin?.(definitionMarker);
+	if (!plugin) {
+		return "";
+	}
+	const currWord = getWordByOffset(plugin.getMarkedPhrases(), editor.posToOffset(editor.getCursor()));
 	return normaliseWord(currWord);
 }
 
@@ -10,8 +17,7 @@ export function normaliseWord(word: string) {
 	return word.trimStart().trimEnd().toLowerCase();
 }
 
-function getWordByOffset(offset: number): string {
-	const markedPhrases = getMarkedPhrases();
+function getWordByOffset(markedPhrases: { from: number; to: number; phrase: string }[], offset: number): string {
 	let start = 0;
 	let end = markedPhrases.length - 1;
 

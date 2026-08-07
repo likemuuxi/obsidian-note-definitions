@@ -1,3 +1,7 @@
+---
+def-type: consolidated
+---
+
 # First
 
 This is the first definition to test basic functionality.

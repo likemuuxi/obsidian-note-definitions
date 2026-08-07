@@ -20,19 +20,15 @@ interface PhraseInfo {
 	phrase: string;
 }
 
-let markedPhrases: PhraseInfo[] = [];
-
-export function getMarkedPhrases(): PhraseInfo[] {
-	return markedPhrases;
-}
-
 // View plugin to mark definitions
 export class DefinitionMarker implements PluginValue {
 	decorations: DecorationSet;
 	editorView: EditorView;
+	markedPhrases: PhraseInfo[];
 
 	constructor(view: EditorView) {
 		this.editorView = view;
+		this.markedPhrases = [];
 		this.decorations = this.buildDecorations(view);
 	}
 
@@ -54,6 +50,10 @@ export class DefinitionMarker implements PluginValue {
 		return;
 	}
 
+	public getMarkedPhrases(): PhraseInfo[] {
+		return this.markedPhrases;
+	}
+
 	destroy() { }
 
 	buildDecorations(view: EditorView): DecorationSet {
@@ -73,7 +73,7 @@ export class DefinitionMarker implements PluginValue {
 			}));
 		});
 
-		markedPhrases = phraseInfos;
+		this.markedPhrases = phraseInfos;
 		return builder.finish();
 	}
 }

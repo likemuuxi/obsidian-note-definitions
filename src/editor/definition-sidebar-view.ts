@@ -6,6 +6,7 @@ import { DefFileType } from "src/core/file-type";
 import { DEFINITIONS_UPDATED_EVENT } from "src/core/def-file-updater";
 import { Definition } from "src/core/model";
 import { t } from "src/i18n";
+import { debounce } from "src/util/debounce";
 
 export const DEFINITION_SIDEBAR_VIEW_TYPE = "definition-sidebar-view";
 
@@ -64,29 +65,57 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			const matchedDefs = new Map<string, Definition & { sourceFile: TFile; fileType: DefFileType; filePath: string; occurrenceCount: number }>();
 			const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-			defManager.globalDefs.getAllKeys().forEach(rawKey => {
-				const key = rawKey?.toLowerCase();
-				if (!key) return;
+			// Build a combined regex to scan content in a single pass
+			const allKeys = defManager.globalDefs.getAllKeys()
+				.map(k => k?.toLowerCase())
+				.filter((k): k is string => !!k);
 
-				// Match as a standalone word/phrase to avoid substring collisions
-				const pattern = new RegExp(`(^|\\W)${escapeRegExp(key)}(\\W|$)`, "g");
-				const matchCount = content.match(pattern)?.length ?? 0;
-				if (matchCount === 0) return;
+			if (allKeys.length > 0) {
+				// Build key → original definition mapping for deduplication
+				const keyToDefKey = new Map<string, string>();
+				for (const rawKey of allKeys) {
+					const def = defManager.globalDefs.get(rawKey);
+					if (def && def.file) {
+						keyToDefKey.set(rawKey, `${def.file.path}::${def.key}`);
+					}
+				}
 
-				const def = defManager.globalDefs.get(key);
-				if (!def || !def.file) return;
-				const uniqueKey = `${def.file.path}::${def.key}`;
-				if (matchedDefs.has(uniqueKey)) return;
+				// Single combined pattern: (^|\W)(key1|key2|...)(\W|$)
+				const combinedPattern = new RegExp(
+					`(^|\\W)(${allKeys.map(k => escapeRegExp(k)).join("|")})(\\W|$)`,
+					"g"
+				);
 
-				const fileType = defManager.getFileType(def.file);
-				matchedDefs.set(uniqueKey, {
-					...def,
-					sourceFile: def.file,
-					fileType,
-					filePath: def.file.path,
-					occurrenceCount: matchCount
-				});
-			});
+				// Count matches per key in a single pass
+				const matchCounts = new Map<string, number>();
+				let m: RegExpExecArray | null;
+				while ((m = combinedPattern.exec(content)) !== null) {
+					const matchedKey = m[2];
+					matchCounts.set(matchedKey, (matchCounts.get(matchedKey) ?? 0) + 1);
+					// Avoid zero-length match infinite loop
+					if (m.index === combinedPattern.lastIndex) {
+						combinedPattern.lastIndex++;
+					}
+				}
+
+				for (const [key, count] of matchCounts) {
+					if (count === 0) continue;
+					const uniqueKey = keyToDefKey.get(key);
+					if (!uniqueKey || matchedDefs.has(uniqueKey)) continue;
+
+					const def = defManager.globalDefs.get(key);
+					if (!def || !def.file) continue;
+
+					const fileType = defManager.getFileType(def.file);
+					matchedDefs.set(uniqueKey, {
+						...def,
+						sourceFile: def.file,
+						fileType,
+						filePath: def.file.path,
+						occurrenceCount: count
+					});
+				}
+			}
 
 			this.definitions = Array.from(matchedDefs.values());
 		}
@@ -280,10 +309,13 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			attr: { placeholder: t("Search definitions...") }
 		});
 		searchInput.value = this.searchTerm;
-		searchInput.addEventListener('input', (e) => {
-			this.searchTerm = (e.target as HTMLInputElement).value;
+		const debouncedSearch = debounce((value: string) => {
+			this.searchTerm = value;
 			this.applyFilters();
 			this.updateDefinitionList();
+		}, 250);
+		searchInput.addEventListener('input', (e) => {
+			debouncedSearch((e.target as HTMLInputElement).value);
 		});
 
 		const actions = toolbar.createDiv({ cls: "def-sidebar-actions" });
@@ -381,12 +413,19 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		}
 	}
 
-	// Sidebar 列表：直接纵向布局，不做瀑布流和随机样式
+	// Sidebar 列表：纵向布局，分批渲染 + IntersectionObserver 懒加载
 	protected updateDefinitionList(listContainer?: Element) {
 		const list = listContainer || this.containerEl.querySelector('.def-sidebar-list');
 		if (!list) return;
 
 		list.empty();
+
+		// Clean up previous observer
+		if (this.observer) {
+			this.observer.disconnect();
+			this.observer = null;
+		}
+		this.loadingSentinel = null;
 
 		if (this.filteredDefinitions.length === 0) {
 			const empty = list.createDiv({ cls: "def-manager-empty" });
@@ -394,9 +433,56 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			return;
 		}
 
-		this.filteredDefinitions.forEach(def => {
-			(this as any).createDefinitionCard(list, def);
+		this.page = 1;
+		this.renderSidebarBatch(list as HTMLElement, 0);
+	}
+
+	private renderSidebarBatch(list: HTMLElement, startIndex: number) {
+		const batch = this.filteredDefinitions.slice(startIndex, startIndex + this.pageSize);
+		const cards: HTMLElement[] = [];
+
+		batch.forEach(def => {
+			const card = (this as any).createDefinitionCard(list, def);
+			cards.push(card);
 		});
+
+		this.waitForCardsToRender(cards).then(() => {
+			// Setup lazy loading if more items exist
+			if (startIndex + this.pageSize < this.filteredDefinitions.length) {
+				this.setupSidebarLazyLoading(list);
+			}
+		});
+	}
+
+	private setupSidebarLazyLoading(list: HTMLElement) {
+		if (this.loadingSentinel) {
+			this.loadingSentinel.remove();
+		}
+
+		this.loadingSentinel = list.createDiv({ cls: "def-loading-sentinel" });
+		this.loadingSentinel.style.height = "20px";
+		this.loadingSentinel.style.width = "100%";
+
+		if (!this.observer) {
+			this.observer = new IntersectionObserver((entries) => {
+				if (entries[0].isIntersecting) {
+					// Disconnect and load next batch
+					if (this.observer) {
+						this.observer.disconnect();
+						this.observer = null;
+					}
+					if (this.loadingSentinel) {
+						this.loadingSentinel.remove();
+						this.loadingSentinel = null;
+					}
+					this.page++;
+					const startIndex = (this.page - 1) * this.pageSize;
+					this.renderSidebarBatch(list, startIndex);
+				}
+			}, { rootMargin: '200px' });
+		}
+
+		this.observer.observe(this.loadingSentinel);
 	}
 
 	getViewType() {

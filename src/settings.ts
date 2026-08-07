@@ -1,6 +1,7 @@
 import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, setTooltip, requestUrl } from "obsidian";
 import { DefFileType } from "./core/file-type";
 import { t } from "./i18n";
+import { normalizeBaseUrl } from "./util/url";
 
 // 内置Prompt常量
 export const DEFAULT_DEFINITION_PROMPT = t("Default definition AI prompt");
@@ -62,6 +63,15 @@ export interface ProviderConfig {
 	baseUrl?: string;
 }
 
+// Single source of truth for default provider configurations
+export const DEFAULT_PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
+	openai: { apiKey: '', model: 'gpt-3.5-turbo', baseUrl: '' },
+	gemini: { apiKey: '', model: 'gemini-pro', baseUrl: '' },
+	ollama: { apiKey: '', model: 'llama3.2', baseUrl: 'http://localhost:11434' },
+	zhipu: { apiKey: '', model: 'glm-4', baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions' },
+	custom: { apiKey: '', model: '', baseUrl: '' },
+};
+
 export interface AIConfig {
 	enabled: boolean;
 	currentProvider?: string; // 当前选择的提供商
@@ -120,33 +130,7 @@ export const DEFAULT_SETTINGS: Partial<Settings> = {
 		currentProvider: 'openai',
 		customPrompt: DEFAULT_DEFINITION_PROMPT,
 		customAliasPrompt: DEFAULT_ALIAS_PROMPT,
-		providers: {
-			openai: {
-				apiKey: '',
-				model: 'gpt-3.5-turbo',
-				baseUrl: ''
-			},
-			gemini: {
-				apiKey: '',
-				model: 'gemini-pro',
-				baseUrl: ''
-			},
-			ollama: {
-				apiKey: '',
-				model: 'llama3.2',
-				baseUrl: 'http://localhost:11434'
-			},
-			zhipu: {
-				apiKey: '',
-				model: 'glm-4',
-				baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-			},
-			custom: {
-				apiKey: '',
-				model: '',
-				baseUrl: ''
-			}
-		},
+		providers: { ...DEFAULT_PROVIDER_CONFIGS },
 		folderPromptMap: {},
 		filePromptMap: {},
 		folderAliasPromptMap: {},
@@ -447,17 +431,10 @@ export class SettingsTab extends PluginSettingTab {
 					}
 
 					// 为新选择的提供商初始化默认配置（如果不存在）
-					if (!this.settings.aiConfig.providers[value as keyof typeof this.settings.aiConfig.providers]) {
-						const defaultConfigs = {
-							openai: { apiKey: '', model: 'gpt-3.5-turbo', baseUrl: '' },
-							gemini: { apiKey: '', model: 'gemini-pro', baseUrl: '' },
-							ollama: { apiKey: '', model: 'llama3.2', baseUrl: 'http://localhost:11434' },
-							zhipu: { apiKey: '', model: 'glm-4', baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions' },
-							custom: { apiKey: '', model: '', baseUrl: '' },
-						};
-						this.settings.aiConfig.providers[value as keyof typeof this.settings.aiConfig.providers] =
-							defaultConfigs[value as keyof typeof defaultConfigs];
-					}
+				if (!this.settings.aiConfig.providers[value as keyof typeof this.settings.aiConfig.providers]) {
+					this.settings.aiConfig.providers[value as keyof typeof this.settings.aiConfig.providers] =
+						{ ...DEFAULT_PROVIDER_CONFIGS[value] };
+				}
 
 					// 切换当前提供商
 					this.settings.aiConfig.currentProvider = value;
@@ -678,16 +655,6 @@ export class SettingsTab extends PluginSettingTab {
 			});
 	}
 
-	private normalizeBaseUrl(url: string): string {
-		url = url.trim();
-		url = url.replace(/\/v1\/?$/, "");   // 去掉末尾 /v1
-		url = url.replace(/\/+$/, "");       // 去掉多余斜杠
-		if (!/^https?:\/\//i.test(url)) {
-			url = "https://" + url;
-		}
-		return url;
-	}
-
 	private async testConnection() {
 		if (!this.settings.aiConfig) {
 			new Notice(t("Please configure AI settings first"));
@@ -741,7 +708,7 @@ export class SettingsTab extends PluginSettingTab {
 					generationConfig: { maxOutputTokens: 10 },
 				};
 			} else if (provider === "ollama") {
-				baseUrl = this.normalizeBaseUrl(baseUrl || "");
+			baseUrl = normalizeBaseUrl(baseUrl || "");
 				apiUrl = `${baseUrl}/api/generate`;
 				headers = { "Content-Type": "application/json" };
 				requestBody = {
@@ -750,7 +717,7 @@ export class SettingsTab extends PluginSettingTab {
 					stream: false,
 				};
 			} else if (provider === "custom") {
-				baseUrl = this.normalizeBaseUrl(baseUrl || "");
+			baseUrl = normalizeBaseUrl(baseUrl || "");
 				if (baseUrl.endsWith("/chat/completions")) {
 					apiUrl = baseUrl;
 				} else {
@@ -788,7 +755,6 @@ export class SettingsTab extends PluginSettingTab {
 			});
 
 			const data = response.json;
-			console.log('Test Connection Response:', data);
 
 			if (response.status !== 200) {
 				throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);

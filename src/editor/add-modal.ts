@@ -4,7 +4,7 @@ import { DefFileUpdater } from "src/core/def-file-updater";
 import { DefFileType } from "src/core/file-type";
 import { FileParser } from "src/core/file-parser";
 import { AIService } from "src/core/ai-service";
-import { DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT, AIConfig } from "src/settings";
+import { DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT, AIConfig, DEFAULT_PROVIDER_CONFIGS } from "src/settings";
 import { t } from "src/i18n";
 
 export class AddDefinitionModal {
@@ -26,36 +26,30 @@ export class AddDefinitionModal {
 	atomicFolderPicker: DropdownComponent;
 
 	private aiService: AIService;
+	private saveCallback?: () => Promise<void>;
 
-	constructor(app: App) {
+	constructor(app: App, saveCallback?: () => Promise<void>) {
 		this.app = app;
 		this.modal = new Modal(app);
+		this.saveCallback = saveCallback;
 		this.aiService = new AIService(this.getAIConfig());
 	}
 
 	private getAIConfig(): AIConfig {
-		// 从插件设置中获取 AI 配置，或使用默认值
 		const settings = window.NoteDefinition?.settings;
-		
-		const defaultConfig = {
-			enabled: true,
-			currentProvider: 'openai',
-			customPrompt: DEFAULT_DEFINITION_PROMPT,
-			customAliasPrompt: DEFAULT_ALIAS_PROMPT,
-			providers: {
-				openai: { apiKey: '', model: 'gpt-3.5-turbo', baseUrl: '' },
-				gemini: { apiKey: '', model: 'gemini-pro', baseUrl: '' },
-				ollama: { apiKey: '', model: 'llama3.2', baseUrl: 'http://localhost:11434' },
-				custom: { apiKey: '', model: '', baseUrl: '' }
-			},
-			folderPromptMap: {},
-			filePromptMap: {},
-			folderAliasPromptMap: {},
-			fileAliasPromptMap: {}
-		};
 
 		if (!settings?.aiConfig) {
-			return defaultConfig;
+			return {
+				enabled: true,
+				currentProvider: 'openai',
+				customPrompt: DEFAULT_DEFINITION_PROMPT,
+				customAliasPrompt: DEFAULT_ALIAS_PROMPT,
+				providers: { ...DEFAULT_PROVIDER_CONFIGS },
+				folderPromptMap: {},
+				filePromptMap: {},
+				folderAliasPromptMap: {},
+				fileAliasPromptMap: {}
+			};
 		}
 
 		// 确保enabled字段存在且为true
@@ -266,42 +260,12 @@ export class AddDefinitionModal {
 		this.consolidatedSubfolderPickerSetting = new Setting(this.modal.contentEl)
 			.setName(t("Subfolder"))
 			.addDropdown(component => {
-				const defFiles = defManager.getConsolidatedDefFiles();
-				const defFolders = defManager.getDefFolders();
-				const allSubfolders: Set<string> = new Set();
-				
-				// 添加主配置文件夹
-				defFolders.forEach(folder => {
-					allSubfolders.add(folder.path);
-				});
-				
-				// 添加所有子文件夹路径
-				defFolders.forEach(folder => {
-					const files = this.app.vault.getFiles();
-					files.forEach(file => {
-						if (file.path.startsWith(folder.path + "/")) {
-							const relativePath = file.path.substring(folder.path.length + 1);
-							const pathParts = relativePath.split("/");
-							
-							// 如果文件在子文件夹中，添加所有层级的子文件夹路径
-							if (pathParts.length > 1) {
-								let currentPath = folder.path;
-								for (let i = 0; i < pathParts.length - 1; i++) {
-									currentPath += "/" + pathParts[i];
-									allSubfolders.add(currentPath);
-								}
-							}
-						}
-					});
-				});
-				
-				// 将所有路径排序并添加到下拉框
-				const sortedPaths = Array.from(allSubfolders).sort();
-				sortedPaths.forEach(folderPath => {
-					component.addOption(folderPath, folderPath);
-				});
-				
-				this.consolidatedSubfolderPicker = component;
+			const sortedPaths = this.getSubfolderPaths();
+			sortedPaths.forEach(folderPath => {
+				component.addOption(folderPath, folderPath);
+			});
+
+			this.consolidatedSubfolderPicker = component;
 				
 				// 监听子文件夹选择变化，更新定义文件列表
 				component.onChange((selectedFolder) => {
@@ -330,43 +294,13 @@ export class AddDefinitionModal {
 		this.atomicFolderPickerSetting = new Setting(this.modal.contentEl)
 			.setName(t("Add file to folder"))
 			.addDropdown(component => {
-				const defManager = getDefFileManager();
-				const defFolders = defManager.getDefFolders();
-				const allFolderPaths: Set<string> = new Set();
-				
-				// 添加主文件夹
-				defFolders.forEach(folder => {
-					allFolderPaths.add(folder.path);
-				});
-				
-				// 添加所有子文件夹路径
-				defFolders.forEach(folder => {
-					const files = this.app.vault.getFiles();
-					files.forEach(file => {
-						if (file.path.startsWith(folder.path + "/")) {
-							const relativePath = file.path.substring(folder.path.length + 1);
-							const pathParts = relativePath.split("/");
-							
-							// 如果文件在子文件夹中，添加所有层级的子文件夹路径
-							if (pathParts.length > 1) {
-								let currentPath = folder.path;
-								for (let i = 0; i < pathParts.length - 1; i++) {
-									currentPath += "/" + pathParts[i];
-									allFolderPaths.add(currentPath);
-								}
-							}
-						}
-					});
-				});
-				
-				// 将所有路径排序并添加到下拉框
-				const sortedPaths = Array.from(allFolderPaths).sort();
-				sortedPaths.forEach(folderPath => {
-					component.addOption(folderPath, folderPath + "/");
-				});
-				
-				this.atomicFolderPicker = component;
-			})
+			const sortedPaths = this.getSubfolderPaths();
+			sortedPaths.forEach(folderPath => {
+				component.addOption(folderPath, folderPath + "/");
+			});
+
+			this.atomicFolderPicker = component;
+		})
 			.addButton(button => {
 				button.setButtonText("+")
 				.setTooltip(t("Create a new subfolder"))
@@ -515,41 +449,43 @@ export class AddDefinitionModal {
 	private refreshFolderDropdown() {
 		// 清空现有选项
 		this.atomicFolderPicker.selectEl.innerHTML = "";
-		
+
+		const sortedPaths = this.getSubfolderPaths();
+		sortedPaths.forEach(folderPath => {
+			this.atomicFolderPicker.addOption(folderPath, folderPath + "/");
+		});
+	}
+
+	private getSubfolderPaths(): string[] {
 		const defManager = getDefFileManager();
 		const defFolders = defManager.getDefFolders();
-		const allFolderPaths: Set<string> = new Set();
-		
-		// 添加主文件夹
+		const allPaths: Set<string> = new Set();
+
+		// Add main def folders
 		defFolders.forEach(folder => {
-			allFolderPaths.add(folder.path);
+			allPaths.add(folder.path);
 		});
-		
-		// 添加所有子文件夹路径
+
+		// Get all files once, then build subfolder paths
+		const allFiles = this.app.vault.getFiles();
 		defFolders.forEach(folder => {
-			const files = this.app.vault.getFiles();
-			files.forEach(file => {
+			allFiles.forEach(file => {
 				if (file.path.startsWith(folder.path + "/")) {
 					const relativePath = file.path.substring(folder.path.length + 1);
 					const pathParts = relativePath.split("/");
-					
-					// 如果文件在子文件夹中，添加所有层级的子文件夹路径
+
 					if (pathParts.length > 1) {
 						let currentPath = folder.path;
 						for (let i = 0; i < pathParts.length - 1; i++) {
 							currentPath += "/" + pathParts[i];
-							allFolderPaths.add(currentPath);
+							allPaths.add(currentPath);
 						}
 					}
 				}
 			});
 		});
-		
-		// 将所有路径排序并添加到下拉框
-		const sortedPaths = Array.from(allFolderPaths).sort();
-		sortedPaths.forEach(folderPath => {
-			this.atomicFolderPicker.addOption(folderPath, folderPath + "/");
-		});
+
+		return Array.from(allPaths).sort();
 	}
 
 	private async createNewDefFile() {
@@ -848,7 +784,10 @@ export class AddDefinitionModal {
 				settings.aiConfig.fileAliasPromptMap = newConfig.fileAliasPromptMap;
 			}
 
-			// 触发设置保存 - 简化版本，直接更新设置
+			// 触发设置保存
+			if (this.saveCallback) {
+				await this.saveCallback();
+			}
 			new Notice(`✅ ${t("Prompt mapping saved")}`);
 			modal.close();
 		};

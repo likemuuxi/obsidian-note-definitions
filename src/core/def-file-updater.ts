@@ -222,7 +222,7 @@ export class DefFileUpdater {
 	}
 
 	private removeTrailingBlankNewlines(lines: string[]): string[] {
-		let blankLines = 0;
+		let blankLines = lines.length;
 		for (let i = 0; i < lines.length; i++) {
 			const currLine = lines[lines.length - 1 - i];
 			if (/\S/.test(currLine)) {
