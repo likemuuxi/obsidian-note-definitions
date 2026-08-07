@@ -1,26 +1,27 @@
 import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, setTooltip, requestUrl } from "obsidian";
 import { DefFileType } from "./core/file-type";
+import { t } from "./i18n";
 
 // 内置Prompt常量
-export const DEFAULT_DEFINITION_PROMPT = '你是一个专业的术语定义助手。请为给定的词语或短语"{word}"提供准确、简洁、专业的定义。应该根据定义的所属类别确定定义内容的风格，推荐使用Markdown语法引用权威来源。请用中文回答，全文使用标准Markdown语法，保持定义简洁明了，不要添加任何无关语句。';
+export const DEFAULT_DEFINITION_PROMPT = t("Default definition AI prompt");
 
-export const DEFAULT_ALIAS_PROMPT = '请为术语"{word}"生成相关的别名。请优先使用维基百科介绍中的别名，包括：\n1. 英文翻译（如果原词是中文）\n2. 中文翻译（如果原词是英文）\n3. 常用别名或又称\n4. 简称或缩写\n\n请直接返回别名列表，每个别名用逗号分隔，不要包含原词本身，不要添加任何解释文字。\n例如：Bubble Sort, 泡式排序, 气泡排序';
+export const DEFAULT_ALIAS_PROMPT = t("Default alias AI prompt");
 
 // Prompt模板常量
 export const DEFINITION_PROMPT_TEMPLATES: Record<string, string> = {
 	'default': DEFAULT_DEFINITION_PROMPT,
-	'technical': '你是一个技术术语专家。请为技术术语"{word}"提供专业定义，包括：\n1. 核心概念和原理\n2. 技术特征和功能\n3. 应用场景和用途\n4. 相关技术栈或依赖\n请用中文回答，全文使用标准Markdown语法，保持技术准确性，不要添加任何无关语句。',
-	'academic': '你是一个学术概念专家。请为学术术语"{word}"提供严谨的定义，包括：\n1. 学科背景和理论基础\n2. 核心概念和内涵\n3. 学术意义和价值\n4. 相关理论或研究\n请用中文回答，全文使用标准Markdown语法，保持学术严谨性，不要添加任何无关语句。',
-	'business': '你是一个商业术语专家。请为商业术语"{word}"提供实用的定义，包括：\n1. 商业含义和价值\n2. 应用场景和实践\n3. 对企业的影响\n4. 相关商业概念\n请用中文回答，全文使用标准Markdown语法，注重实用性，不要添加任何无关语句。',
-	'medical': '你是一个医学术语专家。请为医学术语"{word}"提供准确的定义，包括：\n1. 医学含义和机制\n2. 临床表现或特征\n3. 诊断或治疗相关\n4. 相关医学概念\n请用中文回答，全文使用标准Markdown语法，保持医学准确性，不要添加任何无关语句。'
+	'technical': t("Technical definition AI prompt"),
+	'academic': t("Academic definition AI prompt"),
+	'business': t("Business definition AI prompt"),
+	'medical': t("Medical definition AI prompt")
 };
 
 export const ALIAS_PROMPT_TEMPLATES: Record<string, string> = {
 	'default': DEFAULT_ALIAS_PROMPT,
-	'wikipedia': '请为术语"{word}"生成维基百科风格的别名，包括：\n1. 官方英文名称\n2. 中文译名\n3. 学术名称\n4. 通俗称呼\n5. 历史名称\n\n请直接返回别名列表，用逗号分隔，不包含解释。',
-	'multilingual': '请为术语"{word}"生成多语言别名：\n1. 英文名称（如果原词是中文）\n2. 中文名称（如果原词是英文）\n3. 其他常见语言的名称\n4. 国际通用名称\n\n请直接返回别名列表，用逗号分隔。',
-	'abbreviation': '请为术语"{word}"生成缩写和简称：\n1. 英文缩写\n2. 中文简称\n3. 行业内常用缩写\n4. 口语化简称\n\n请直接返回别名列表，用逗号分隔。',
-	'synonym': '请为术语"{word}"生成同义词和近义词：\n1. 完全同义词\n2. 近义词\n3. 相关概念\n4. 类似术语\n\n请直接返回别名列表，用逗号分隔。'
+	'wikipedia': t("Wikipedia alias AI prompt"),
+	'multilingual': t("Multilingual alias AI prompt"),
+	'abbreviation': t("Abbreviation alias AI prompt"),
+	'synonym': t("Synonym alias AI prompt")
 };
 
 export enum PopoverEventSettings {
@@ -171,8 +172,8 @@ export class SettingsTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName("Enable in Reading View")
-			.setDesc("Allow defined phrases and definition popovers to be shown in Reading View")
+			.setName(t("Enable in Reading View"))
+			.setDesc(t("Allow defined phrases and definition popovers to be shown in Reading View"))
 			.addToggle((component) => {
 				component.setValue(this.settings.enableInReadingView);
 				component.onChange(async (val) => {
@@ -181,8 +182,8 @@ export class SettingsTab extends PluginSettingTab {
 				});
 			});
 		new Setting(containerEl)
-			.setName("Enable spellcheck for defined words")
-			.setDesc("Allow defined words and phrases to be spellchecked")
+			.setName(t("Enable spellcheck for defined words"))
+			.setDesc(t("Allow defined words and phrases to be spellchecked"))
 			.addToggle((component) => {
 				component.setValue(this.settings.enableSpellcheck);
 				component.onChange(async (val) => {
@@ -192,36 +193,36 @@ export class SettingsTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Definitions folder")
-			.setDesc("Files within this folder will be parsed to register definitions")
+			.setName(t("Definitions folder"))
+			.setDesc(t("Files within this folder will be parsed to register definitions"))
 			.addText((component) => {
 				component.setValue(this.settings.defFolder);
 				component.setPlaceholder(DEFAULT_DEF_FOLDER);
 				component.setDisabled(true)
 				setTooltip(component.inputEl,
-					"In the file explorer, right-click on the desired folder and click on 'Set definition folder' to change the definition folder",
+					t("Definition folder help"),
 					{
 						delay: 100
 					});
 			});
 		new Setting(containerEl)
-			.setName("Definition file format settings")
-			.setDesc("Customise parsing rules for definition files")
+			.setName(t("Definition file format settings"))
+			.setDesc(t("Customise parsing rules for definition files"))
 			.addExtraButton(component => {
 				component.onClick(() => {
 					const modal = new Modal(this.app);
-					modal.setTitle("Definition file format settings")
+					modal.setTitle(t("Definition file format settings"))
 					new Setting(modal.contentEl)
-						.setName("Divider")
+						.setName(t("Divider"))
 						.setHeading()
 					new Setting(modal.contentEl)
-						.setName("Dash")
-						.setDesc("Use triple dash (---) as divider")
+						.setName(t("Dash"))
+						.setDesc(t("Use triple dash (---) as divider"))
 						.addToggle((component) => {
 							component.setValue(this.settings.defFileParseConfig.divider.dash);
 							component.onChange(async value => {
 								if (!value && !this.settings.defFileParseConfig.divider.underscore) {
-									new Notice("At least one divider must be chosen", 2000);
+									new Notice(t("At least one divider must be chosen"), 2000);
 									component.setValue(this.settings.defFileParseConfig.divider.dash);
 									return;
 								}
@@ -230,13 +231,13 @@ export class SettingsTab extends PluginSettingTab {
 							});
 						});
 					new Setting(modal.contentEl)
-						.setName("Underscore")
-						.setDesc("Use triple underscore (___) as divider")
+						.setName(t("Underscore"))
+						.setDesc(t("Use triple underscore (___) as divider"))
 						.addToggle((component) => {
 							component.setValue(this.settings.defFileParseConfig.divider.underscore);
 							component.onChange(async value => {
 								if (!value && !this.settings.defFileParseConfig.divider.dash) {
-									new Notice("At least one divider must be chosen", 2000);
+									new Notice(t("At least one divider must be chosen"), 2000);
 									component.setValue(this.settings.defFileParseConfig.divider.underscore);
 									return;
 								}
@@ -249,11 +250,11 @@ export class SettingsTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Default definition file type")
-			.setDesc("When the 'def-type' frontmatter is not specified, the definition file will be treated as this configured default file type.")
+			.setName(t("Default definition file type"))
+			.setDesc(t("Default definition file type description"))
 			.addDropdown(component => {
-				component.addOption(DefFileType.Consolidated, "consolidated");
-				component.addOption(DefFileType.Atomic, "atomic");
+				component.addOption(DefFileType.Consolidated, t("Consolidated"));
+				component.addOption(DefFileType.Atomic, t("Atomic"));
 				component.setValue(this.settings.defFileParseConfig.defaultFileType ?? DefFileType.Consolidated);
 				component.onChange(async val => {
 					this.settings.defFileParseConfig.defaultFileType = val as DefFileType;
@@ -262,8 +263,8 @@ export class SettingsTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Automatically detect plurals -- English only")
-			.setDesc("Attempt to automatically generate aliases for words using English pluralisation rules")
+			.setName(t("Automatically detect plurals — English only"))
+			.setDesc(t("Attempt to automatically generate aliases for words using English pluralisation rules"))
 			.addToggle((component) => {
 				component.setValue(this.settings.defFileParseConfig.autoPlurals);
 				component.onChange(async (val) => {
@@ -274,14 +275,14 @@ export class SettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setHeading()
-			.setName("Definition Popover Settings");
+			.setName(t("Definition popover settings"));
 
 		new Setting(containerEl)
-			.setName("Definition popover display event")
-			.setDesc("Choose the trigger event for displaying the definition popover")
+			.setName(t("Definition popover display event"))
+			.setDesc(t("Choose the trigger event for displaying the definition popover"))
 			.addDropdown((component) => {
-				component.addOption(PopoverEventSettings.Hover, "Hover");
-				component.addOption(PopoverEventSettings.Click, "Click");
+				component.addOption(PopoverEventSettings.Hover, t("Hover"));
+				component.addOption(PopoverEventSettings.Click, t("Click"));
 				component.setValue(this.settings.popoverEvent);
 				component.onChange(async value => {
 					if (value === PopoverEventSettings.Hover || value === PopoverEventSettings.Click) {
@@ -297,11 +298,11 @@ export class SettingsTab extends PluginSettingTab {
 
 		if (this.settings.popoverEvent === PopoverEventSettings.Hover) {
 			new Setting(containerEl)
-				.setName("Definition popover dismiss event")
-				.setDesc("Configure the manner in which you would like to close/dismiss the definition popover.")
+				.setName(t("Definition popover dismiss event"))
+				.setDesc(t("Configure how the definition popover is closed or dismissed."))
 				.addDropdown(component => {
-					component.addOption(PopoverDismissType.Click, "Click");
-					component.addOption(PopoverDismissType.MouseExit, "Mouse exit")
+					component.addOption(PopoverDismissType.Click, t("Click"));
+					component.addOption(PopoverDismissType.MouseExit, t("Mouse exit"))
 					if (!this.settings.defPopoverConfig.popoverDismissEvent) {
 						this.settings.defPopoverConfig.popoverDismissEvent = PopoverDismissType.Click;
 						this.saveCallback();
@@ -317,8 +318,8 @@ export class SettingsTab extends PluginSettingTab {
 		}
 
 		new Setting(containerEl)
-			.setName("Display aliases")
-			.setDesc("Display the list of aliases configured for the definition")
+			.setName(t("Display aliases"))
+			.setDesc(t("Display the list of aliases configured for the definition"))
 			.addToggle(component => {
 				component.setValue(this.settings.defPopoverConfig.displayAliases);
 				component.onChange(async value => {
@@ -329,8 +330,8 @@ export class SettingsTab extends PluginSettingTab {
 
 
 		new Setting(containerEl)
-			.setName("Display definition source file")
-			.setDesc("Display the title of the definition's source file")
+			.setName(t("Display definition source file"))
+			.setDesc(t("Display the title of the definition's source file"))
 			.addToggle(component => {
 				component.setValue(this.settings.defPopoverConfig.displayDefFileName);
 				component.onChange(async value => {
@@ -340,8 +341,8 @@ export class SettingsTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Custom popover size")
-			.setDesc("Customise the maximum popover size. This is not recommended as it prevents dynamic sizing of the popover based on your viewport.")
+			.setName(t("Custom popover size"))
+			.setDesc(t("Custom popover size description"))
 			.addToggle(component => {
 				component.setValue(this.settings.defPopoverConfig.enableCustomSize);
 				component.onChange(async value => {
@@ -353,8 +354,8 @@ export class SettingsTab extends PluginSettingTab {
 
 		if (this.settings.defPopoverConfig.enableCustomSize) {
 			new Setting(containerEl)
-				.setName("Popover width (px)")
-				.setDesc("Maximum width of the definition popover")
+				.setName(t("Popover width (px)"))
+				.setDesc(t("Maximum width of the definition popover"))
 				.addSlider(component => {
 					component.setLimits(150, window.innerWidth, 1);
 					component.setValue(this.settings.defPopoverConfig.maxWidth);
@@ -366,8 +367,8 @@ export class SettingsTab extends PluginSettingTab {
 				});
 
 			new Setting(containerEl)
-				.setName("Popover height (px)")
-				.setDesc("Maximum height of the definition popover")
+				.setName(t("Popover height (px)"))
+				.setDesc(t("Maximum height of the definition popover"))
 				.addSlider(component => {
 					component.setLimits(150, window.innerHeight, 1);
 					component.setValue(this.settings.defPopoverConfig.maxHeight);
@@ -380,8 +381,8 @@ export class SettingsTab extends PluginSettingTab {
 		}
 
 		new Setting(containerEl)
-			.setName("Enable definition links")
-			.setDesc("Definitions within popovers will be marked and can be clicked to go to definition.")
+			.setName(t("Enable definition links"))
+			.setDesc(t("Definitions within popovers will be marked and can be clicked to go to definition."))
 			.addToggle(component => {
 				component.setValue(this.settings.defPopoverConfig.enableDefinitionLink);
 				component.onChange(async val => {
@@ -391,11 +392,11 @@ export class SettingsTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Background colour")
-			.setDesc("Customise the background colour of the definition popover")
+			.setName(t("Background colour"))
+			.setDesc(t("Customise the background colour of the definition popover"))
 			.addExtraButton(component => {
 				component.setIcon("rotate-ccw");
-				component.setTooltip("Reset to default colour set by theme");
+				component.setTooltip(t("Reset to default colour set by theme"));
 				component.onClick(async () => {
 					this.settings.defPopoverConfig.backgroundColour = undefined;
 					await this.saveCallback();
@@ -414,20 +415,20 @@ export class SettingsTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setHeading()
-			.setName("AI Integration Settings");
+			.setName(t("AI integration settings"));
 
 
 
 
 		new Setting(containerEl)
-			.setName("API Provider")
-			.setDesc("Choose your AI API provider")
+			.setName(t("API provider"))
+			.setDesc(t("Choose your AI API provider"))
 			.addDropdown(component => {
 				component.addOption('openai', 'OpenAI');
 				component.addOption('gemini', 'Google Gemini');
-				component.addOption('ollama', 'Local Ollama');
+				component.addOption('ollama', t('Local Ollama'));
 				component.addOption('zhipu', 'Zhipu AI');
-				component.addOption('custom', 'Custom Provider');
+				component.addOption('custom', t('Custom provider'));
 				component.setValue(this.settings.aiConfig?.currentProvider || 'openai');
 				component.onChange(async value => {
 					if (!this.settings.aiConfig) {
@@ -471,8 +472,8 @@ export class SettingsTab extends PluginSettingTab {
 
 		if (currentProvider === 'custom') {
 			new Setting(containerEl)
-				.setName("Base URL")
-				.setDesc("The base URL for your custom API provider (e.g., https://openrouter.ai/api)")
+				.setName(t("Base URL"))
+				.setDesc(t("Custom provider base URL description"))
 				.addText(component => {
 					component.setPlaceholder("https://openrouter.ai/api");
 					component.setValue(currentProviderConfig?.baseUrl || '');
@@ -496,8 +497,8 @@ export class SettingsTab extends PluginSettingTab {
 				});
 		} else if (currentProvider === 'ollama') {
 			new Setting(containerEl)
-				.setName("Ollama URL")
-				.setDesc("The URL where Ollama is running (default: http://localhost:11434)")
+				.setName(t("Ollama URL"))
+				.setDesc(t("Ollama URL description"))
 				.addText(component => {
 					component.setPlaceholder("http://localhost:11434");
 					component.setValue(currentProviderConfig?.baseUrl || 'http://localhost:11434');
@@ -522,8 +523,8 @@ export class SettingsTab extends PluginSettingTab {
 		}
 
 		new Setting(containerEl)
-			.setName("AI Model")
-			.setDesc("Choose the AI model to use for definition generation")
+			.setName(t("AI model"))
+			.setDesc(t("Choose the AI model to use for definition generation"))
 			.addText(component => {
 				let placeholder: string;
 				if (currentProvider === 'openai') {
@@ -564,15 +565,15 @@ export class SettingsTab extends PluginSettingTab {
 
 		if (currentProvider !== 'ollama') {
 			new Setting(containerEl)
-				.setName("API Key")
+				.setName(t("API key"))
 				.setDesc(
 					currentProvider === 'custom'
-						? "Your API key for the custom provider"
+						? t("Your API key for the custom provider")
 						: currentProvider === 'gemini'
-							? "Your Google AI Studio API key for Gemini models"
+							? t("Your Google AI Studio API key for Gemini models")
 							: currentProvider === 'zhipu'
-								? "Your Zhipu AI API key (BigModel)"
-								: "Your OpenAI API key for AI definition generation"
+								? t("Your Zhipu AI API key (BigModel)")
+								: t("Your OpenAI API key for AI definition generation")
 				)
 				.addText(component => {
 					let placeholder: string;
@@ -613,10 +614,10 @@ export class SettingsTab extends PluginSettingTab {
 
 		// 添加连通性测试按钮
 		new Setting(containerEl)
-			.setName("Test")
-			.setDesc("Test the connection to your AI provider")
+			.setName(t("Test"))
+			.setDesc(t("Test the connection to your AI provider"))
 			.addButton(component => {
-				component.setButtonText("Test");
+				component.setButtonText(t("Test"));
 				component.onClick(async () => {
 					await this.testConnection();
 				});
@@ -627,13 +628,13 @@ export class SettingsTab extends PluginSettingTab {
 		// 添加Prompt映射设置
 		new Setting(containerEl)
 			.setHeading()
-			.setName("Prompt Settings");
+			.setName(t("Prompt settings"));
 
 		new Setting(containerEl)
-			.setName("Default Prompts")
-			.setDesc("Configure default prompts for definition and alias generation")
+			.setName(t("Default prompts"))
+			.setDesc(t("Configure default prompts for definition and alias generation"))
 			.addButton(component => {
-				component.setButtonText("Manage");
+				component.setButtonText(t("Manage"));
 				component.onClick(() => {
 					this.showPromptEditModal('default',
 						this.settings.aiConfig?.customPrompt || DEFAULT_DEFINITION_PROMPT,
@@ -657,20 +658,20 @@ export class SettingsTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Folder Prompt Mapping (Atomic)")
-			.setDesc("Set specific prompts for different folders when creating atomic definitions")
+			.setName(t("Folder prompt mapping (atomic)"))
+			.setDesc(t("Set specific prompts for different folders when creating atomic definitions"))
 			.addButton(component => {
-				component.setButtonText("Manage");
+				component.setButtonText(t("Manage"));
 				component.onClick(() => {
 					this.showPromptMappingModal('folder');
 				});
 			});
 
 		new Setting(containerEl)
-			.setName("File Prompt Mapping (Consolidated)")
-			.setDesc("Set specific prompts for different consolidated definition files")
+			.setName(t("File prompt mapping (consolidated)"))
+			.setDesc(t("Set specific prompts for different consolidated definition files"))
 			.addButton(component => {
-				component.setButtonText("Manage");
+				component.setButtonText(t("Manage"));
 				component.onClick(() => {
 					this.showPromptMappingModal('file');
 				});
@@ -689,7 +690,7 @@ export class SettingsTab extends PluginSettingTab {
 
 	private async testConnection() {
 		if (!this.settings.aiConfig) {
-			new Notice("请先配置AI设置");
+			new Notice(t("Please configure AI settings first"));
 			return;
 		}
 
@@ -703,16 +704,16 @@ export class SettingsTab extends PluginSettingTab {
 		const model = providerConfig?.model;
 
 		if (!provider || !model) {
-			new Notice("请先配置AI提供商和模型");
+			new Notice(t("Please configure an AI provider and model first"));
 			return;
 		}
 
 		if (provider !== "ollama" && !apiKey) {
-			new Notice("请先配置API Key");
+			new Notice(t("Please configure an API key first"));
 			return;
 		}
 
-		const notice = new Notice("正在测试连接...", 0);
+		const notice = new Notice(t("Testing connection..."), 0);
 
 		try {
 			let apiUrl: string;
@@ -776,7 +777,7 @@ export class SettingsTab extends PluginSettingTab {
 					max_tokens: 10,
 				};
 			} else {
-				throw new Error("不支持的提供商");
+				throw new Error(t("Unsupported provider"));
 			}
 
 			const response = await requestUrl({
@@ -809,20 +810,23 @@ export class SettingsTab extends PluginSettingTab {
 
 			if (validContent) {
 				notice.hide();
-				new Notice("连接测试成功：API响应格式正确", 2000);
+				new Notice(t("Connection test succeeded: the API response format is valid"), 2000);
 			} else {
-				throw new Error(`API连接成功但返回格式无法解析: ${JSON.stringify(data)}`);
+				throw new Error(t("Connection succeeded but the API response could not be parsed: {{response}}", {
+					response: JSON.stringify(data)
+				}));
 			}
 		} catch (error: any) {
 			notice.hide();
 			console.error("连接测试失败:", error);
-			new Notice(`连接测试失败: ${error.message}`, 5000);
+			new Notice(t("Connection test failed: {{error}}", { error: error.message }), 5000);
 		}
 	}
 
 	private showPromptMappingModal(type: 'folder' | 'file') {
 		const modal = new Modal(this.app);
-		const title = `${type === 'folder' ? 'Folder' : 'File'} Prompt Mapping`;
+		const target = t(type === 'folder' ? "Folder" : "File");
+		const title = t("{{target}} prompt mapping", { target });
 		modal.setTitle(title);
 
 		const content = modal.contentEl;
@@ -875,7 +879,7 @@ export class SettingsTab extends PluginSettingTab {
 				buttonGroup.style.display = "flex";
 				buttonGroup.style.gap = "5px";
 
-				const editButton = buttonGroup.createEl("button", { text: "Edit" });
+				const editButton = buttonGroup.createEl("button", { text: t("Edit") });
 				editButton.style.fontSize = "12px";
 				editButton.onclick = () => {
 					this.showPromptEditModal(path, prompt, aliasPrompt, (newPrompt, newAliasPrompt) => {
@@ -886,7 +890,7 @@ export class SettingsTab extends PluginSettingTab {
 					});
 				};
 
-				const deleteButton = buttonGroup.createEl("button", { text: "Delete" });
+				const deleteButton = buttonGroup.createEl("button", { text: t("Delete") });
 				deleteButton.style.backgroundColor = "var(--interactive-accent)";
 				deleteButton.style.color = "white";
 				deleteButton.style.fontSize = "12px";
@@ -901,7 +905,7 @@ export class SettingsTab extends PluginSettingTab {
 				const defPromptContainer = mappingItem.createDiv();
 				defPromptContainer.style.marginBottom = "8px";
 
-				const defPromptLabel = defPromptContainer.createDiv({ text: "定义Prompt:" });
+				const defPromptLabel = defPromptContainer.createDiv({ text: t("Definition prompt:") });
 				defPromptLabel.style.fontSize = "12px";
 				defPromptLabel.style.fontWeight = "bold";
 				defPromptLabel.style.color = "var(--text-muted)";
@@ -918,13 +922,13 @@ export class SettingsTab extends PluginSettingTab {
 				// 别名prompt预览
 				const aliasPromptContainer = mappingItem.createDiv();
 
-				const aliasPromptLabel = aliasPromptContainer.createDiv({ text: "别名Prompt:" });
+				const aliasPromptLabel = aliasPromptContainer.createDiv({ text: t("Alias prompt:") });
 				aliasPromptLabel.style.fontSize = "12px";
 				aliasPromptLabel.style.fontWeight = "bold";
 				aliasPromptLabel.style.color = "var(--text-muted)";
 				aliasPromptLabel.style.marginBottom = "3px";
 
-				const aliasPromptSpan = aliasPromptContainer.createDiv({ text: aliasPrompt ? (aliasPrompt.substring(0, 80) + (aliasPrompt.length > 80 ? "..." : "")) : "未设置" });
+				const aliasPromptSpan = aliasPromptContainer.createDiv({ text: aliasPrompt ? (aliasPrompt.substring(0, 80) + (aliasPrompt.length > 80 ? "..." : "")) : t("Not set") });
 				aliasPromptSpan.style.fontSize = "12px";
 				aliasPromptSpan.style.color = aliasPrompt ? "var(--text-normal)" : "var(--text-muted)";
 				aliasPromptSpan.style.fontFamily = "monospace";
@@ -934,7 +938,7 @@ export class SettingsTab extends PluginSettingTab {
 			});
 
 			if (Object.keys(currentMap).length === 0) {
-				const emptyMessage = mappingContainer.createDiv({ text: "No mappings configured" });
+				const emptyMessage = mappingContainer.createDiv({ text: t("No mappings configured") });
 				emptyMessage.style.textAlign = "center";
 				emptyMessage.style.color = "var(--text-muted)";
 				emptyMessage.style.padding = "20px";
@@ -944,7 +948,7 @@ export class SettingsTab extends PluginSettingTab {
 		refreshMappingList();
 
 		// 添加新映射按钮
-		const addButton = content.createEl("button", { text: `Add ${type === 'folder' ? 'Folder' : 'File'} Mapping` });
+		const addButton = content.createEl("button", { text: t("Add {{target}} mapping", { target }) });
 		addButton.style.width = "100%";
 		addButton.style.marginBottom = "10px";
 		addButton.onclick = () => {
@@ -962,14 +966,15 @@ export class SettingsTab extends PluginSettingTab {
 
 	private showAddMappingModal(type: 'folder' | 'file', onAdd: (path: string, prompt: string, aliasPrompt: string) => void) {
 		const modal = new Modal(this.app);
-		modal.setTitle(`Add ${type === 'folder' ? 'Folder' : 'File'} Mapping`);
+		const target = t(type === 'folder' ? "Folder" : "File");
+		modal.setTitle(t("Add {{target}} mapping", { target }));
 
 		const content = modal.contentEl;
 
 		// 路径选择
 		new Setting(content)
-			.setName(type === 'folder' ? 'Folder Path' : 'File Path')
-			.setDesc(`Select the ${type} to map`)
+			.setName(t(type === 'folder' ? "Folder path" : "File path"))
+			.setDesc(t("Select the {{target}} to map", { target }))
 			.addDropdown(component => {
 				if (type === 'folder') {
 					// 获取所有文件夹（简化版本，避免循环依赖）
@@ -994,8 +999,8 @@ export class SettingsTab extends PluginSettingTab {
 		// Prompt输入
 		let promptTextArea: HTMLTextAreaElement;
 		new Setting(content)
-			.setName('定义生成Prompt')
-			.setDesc('Enter the custom prompt for definition generation')
+			.setName(t("Definition generation prompt"))
+			.setDesc(t("Enter the custom prompt for definition generation"))
 			.addTextArea(component => {
 				promptTextArea = component.inputEl;
 				component.inputEl.rows = 6;
@@ -1005,15 +1010,15 @@ export class SettingsTab extends PluginSettingTab {
 
 		// 添加定义prompt模板选择
 		new Setting(content)
-			.setName('定义Prompt模板')
-			.setDesc('选择常用的定义prompt模板')
+			.setName(t("Definition prompt template"))
+			.setDesc(t("Choose a commonly used definition prompt template"))
 			.addDropdown(component => {
-				component.addOption('', '选择模板...');
-				component.addOption('default', '默认通用模板');
-				component.addOption('technical', '技术术语模板');
-				component.addOption('academic', '学术概念模板');
-				component.addOption('business', '商业术语模板');
-				component.addOption('medical', '医学术语模板');
+				component.addOption('', t("Choose a template..."));
+				component.addOption('default', t("Default general template"));
+				component.addOption('technical', t("Technical term template"));
+				component.addOption('academic', t("Academic concept template"));
+				component.addOption('business', t("Business term template"));
+				component.addOption('medical', t("Medical term template"));
 				component.onChange(value => {
 					if (value && promptTextArea) {
 						promptTextArea.value = DEFINITION_PROMPT_TEMPLATES[value] || '';
@@ -1024,8 +1029,8 @@ export class SettingsTab extends PluginSettingTab {
 		// 别名Prompt输入
 		let aliasPromptTextArea: HTMLTextAreaElement;
 		new Setting(content)
-			.setName('别名生成Prompt')
-			.setDesc('Enter the custom prompt for alias generation')
+			.setName(t("Alias generation prompt"))
+			.setDesc(t("Enter the custom prompt for alias generation"))
 			.addTextArea(component => {
 				aliasPromptTextArea = component.inputEl;
 				component.inputEl.rows = 6;
@@ -1035,15 +1040,15 @@ export class SettingsTab extends PluginSettingTab {
 
 		// 添加别名prompt模板选择
 		new Setting(content)
-			.setName('别名Prompt模板')
-			.setDesc('选择常用的别名prompt模板')
+			.setName(t("Alias prompt template"))
+			.setDesc(t("Choose a commonly used alias prompt template"))
 			.addDropdown(component => {
-				component.addOption('', '选择模板...');
-				component.addOption('default', '默认通用模板');
-				component.addOption('wikipedia', '维基百科风格');
-				component.addOption('multilingual', '多语言别名');
-				component.addOption('abbreviation', '缩写重点');
-				component.addOption('synonym', '同义词重点');
+				component.addOption('', t("Choose a template..."));
+				component.addOption('default', t("Default general template"));
+				component.addOption('wikipedia', t("Wikipedia style"));
+				component.addOption('multilingual', t("Multilingual aliases"));
+				component.addOption('abbreviation', t("Focus on abbreviations"));
+				component.addOption('synonym', t("Focus on synonyms"));
 				component.onChange(value => {
 					if (value && aliasPromptTextArea) {
 						aliasPromptTextArea.value = ALIAS_PROMPT_TEMPLATES[value] || '';
@@ -1058,10 +1063,10 @@ export class SettingsTab extends PluginSettingTab {
 		buttonContainer.style.gap = "10px";
 		buttonContainer.style.marginTop = "20px";
 
-		const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
+		const cancelButton = buttonContainer.createEl("button", { text: t("Cancel") });
 		cancelButton.onclick = () => modal.close();
 
-		const addButton = buttonContainer.createEl("button", { text: "Add" });
+		const addButton = buttonContainer.createEl("button", { text: t("Add") });
 		addButton.addClass("mod-cta");
 		addButton.onclick = () => {
 			const pathDropdown = content.querySelector('select') as HTMLSelectElement;
@@ -1070,12 +1075,12 @@ export class SettingsTab extends PluginSettingTab {
 			const aliasPrompt = aliasPromptTextArea.value.trim();
 
 			if (!path || !prompt) {
-				new Notice("Please select a path and enter a definition prompt");
+				new Notice(t("Please select a path and enter a definition prompt"));
 				return;
 			}
 
 			if (!aliasPrompt) {
-				new Notice("Please enter an alias prompt");
+				new Notice(t("Please enter an alias prompt"));
 				return;
 			}
 
@@ -1089,14 +1094,14 @@ export class SettingsTab extends PluginSettingTab {
 	private showPromptEditModal(path: string, currentPrompt: string, currentAliasPrompt: string, onSave: (newPrompt: string, newAliasPrompt: string) => void) {
 		const modal = new Modal(this.app);
 		const isDefault = path === 'default';
-		modal.setTitle(isDefault ? 'Edit Default Prompts' : `Edit Prompt for ${path}`);
+		modal.setTitle(isDefault ? t("Edit default prompts") : t("Edit prompt for {{path}}", { path }));
 
 		const content = modal.contentEl;
 
 		let promptTextArea: HTMLTextAreaElement;
 		new Setting(content)
-			.setName('Definition Prompt')
-			.setDesc(isDefault ? 'Default prompt for definition generation. Use {word} as placeholder.' : 'Edit the definition prompt for this mapping')
+			.setName(t("Definition prompt"))
+			.setDesc(isDefault ? t("Default definition prompt description") : t("Edit definition prompt description"))
 			.addTextArea(component => {
 				promptTextArea = component.inputEl;
 				component.setValue(currentPrompt);
@@ -1108,8 +1113,8 @@ export class SettingsTab extends PluginSettingTab {
 
 		let aliasPromptTextArea: HTMLTextAreaElement;
 		new Setting(content)
-			.setName('Alias Prompt')
-			.setDesc(isDefault ? 'Default prompt for alias generation. Use {word} as placeholder.' : 'Edit the alias prompt for this mapping')
+			.setName(t("Alias prompt"))
+			.setDesc(isDefault ? t("Default alias prompt description") : t("Edit alias prompt description"))
 			.addTextArea(component => {
 				aliasPromptTextArea = component.inputEl;
 				component.setValue(currentAliasPrompt);
@@ -1128,7 +1133,7 @@ export class SettingsTab extends PluginSettingTab {
 		// 左侧重置按钮（仅对默认prompt显示）
 		const leftButtons = buttonContainer.createDiv();
 		if (isDefault) {
-			const resetButton = leftButtons.createEl("button", { text: "Reset to System Default" });
+			const resetButton = leftButtons.createEl("button", { text: t("Reset to system default") });
 			resetButton.onclick = () => {
 				promptTextArea.value = DEFAULT_DEFINITION_PROMPT;
 				aliasPromptTextArea.value = DEFAULT_ALIAS_PROMPT;
@@ -1140,22 +1145,22 @@ export class SettingsTab extends PluginSettingTab {
 		rightButtons.style.display = "flex";
 		rightButtons.style.gap = "10px";
 
-		const cancelButton = rightButtons.createEl("button", { text: "Cancel" });
+		const cancelButton = rightButtons.createEl("button", { text: t("Cancel") });
 		cancelButton.onclick = () => modal.close();
 
-		const saveButton = rightButtons.createEl("button", { text: "Save" });
+		const saveButton = rightButtons.createEl("button", { text: t("Save") });
 		saveButton.addClass("mod-cta");
 		saveButton.onclick = () => {
 			const newPrompt = promptTextArea.value.trim();
 			const newAliasPrompt = aliasPromptTextArea.value.trim();
 
 			if (!newPrompt) {
-				new Notice("Please enter a definition prompt");
+				new Notice(t("Please enter a definition prompt"));
 				return;
 			}
 
 			if (!newAliasPrompt) {
-				new Notice("Please enter an alias prompt");
+				new Notice(t("Please enter an alias prompt"));
 				return;
 			}
 

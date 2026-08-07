@@ -2,6 +2,7 @@ import { requestUrl } from "obsidian";
 
 // 从settings.ts导入常量和接口
 import { DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT, AIConfig } from "../settings";
+import { t } from "../i18n";
 
 const MAX_TOKENS = 2000;
 const MAX_ALIAS_TOKENS = 100;
@@ -68,7 +69,7 @@ export class AIService {
 			return customPrompt.replace(/\{word\}/g, word);
 		} else {
 			// 如果没有占位符，则在prompt后面添加词语
-			return `${customPrompt}\n\n请为"${word}"提供一个专业的定义。`;
+			return `${customPrompt}\n\n${t("Please provide a professional definition for \"{{word}}\".", { word })}`;
 		}
 	}
 
@@ -87,7 +88,7 @@ export class AIService {
 			return customPrompt.replace(/\{word\}/g, word);
 		} else {
 			// 如果没有占位符，则在prompt后面添加词语
-			return `${customPrompt}\n\n请为"${word}"生成相关的别名。`;
+			return `${customPrompt}\n\n${t("Please generate relevant aliases for \"{{word}}\".", { word })}`;
 		}
 	}
 
@@ -106,7 +107,7 @@ export class AIService {
 		const providerConfig = this.config.providers?.[currentProvider as keyof typeof this.config.providers];
 
 		if (currentProvider !== 'ollama' && !providerConfig?.apiKey) {
-			throw new Error("API Key未配置");
+			throw new Error(t("API key is not configured"));
 		}
 
 		let apiUrl: string;
@@ -190,7 +191,7 @@ export class AIService {
 				type: "disabled"
 			};
 		} else {
-			throw new Error("无效的API提供商配置");
+			throw new Error(t("Invalid API provider configuration"));
 		}
 
 		try {
@@ -206,7 +207,7 @@ export class AIService {
 
 			if (currentProvider === 'openai' || currentProvider === 'custom' || currentProvider === 'zhipu') {
 				if (data?.error) {
-					throw new Error(`API调用失败: ${data.error.message || JSON.stringify(data.error)}`);
+					throw new Error(t("API request failed: {{error}}", { error: data.error.message || JSON.stringify(data.error) }));
 				}
 				const content = data?.choices?.[0]?.message?.content;
 				const reasoningContent = data?.choices?.[0]?.message?.reasoning_content;
@@ -221,32 +222,32 @@ export class AIService {
 					return reasoningContent.trim();
 				}
 
-				throw new Error(`API 返回格式错误。完整响应: ${JSON.stringify(data)}`);
+				throw new Error(t("{{provider}} returned an invalid response: {{response}}", { provider: "API", response: JSON.stringify(data) }));
 			}
 
 			if (currentProvider === 'gemini') {
 				if (data?.error) {
-					throw new Error(`Gemini API调用失败: ${data.error.message || JSON.stringify(data.error)}`);
+					throw new Error(t("API request failed: {{error}}", { error: data.error.message || JSON.stringify(data.error) }));
 				}
 				const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 				if (content) {
 					return content.trim();
 				}
-				throw new Error(`Gemini API 返回格式错误。完整响应: ${JSON.stringify(data)}`);
+				throw new Error(t("{{provider}} returned an invalid response: {{response}}", { provider: "Gemini API", response: JSON.stringify(data) }));
 			}
 
 			if (currentProvider === 'ollama') {
 				if (data?.error) {
-					throw new Error(`Ollama API调用失败: ${data.error}`);
+					throw new Error(t("API request failed: {{error}}", { error: data.error }));
 				}
 				const content = data?.response;
 				if (content) {
 					return content.trim();
 				}
-				throw new Error(`Ollama API 返回格式错误。完整响应: ${JSON.stringify(data)}`);
+				throw new Error(t("{{provider}} returned an invalid response: {{response}}", { provider: "Ollama API", response: JSON.stringify(data) }));
 			}
 
-			throw new Error(`未知的API提供商: ${currentProvider}`);
+			throw new Error(t("Unknown API provider: {{provider}}", { provider: currentProvider }));
 		} catch (error) {
 			console.error('AI API 调用失败:', error);
 			throw error;
@@ -269,7 +270,7 @@ export class AIService {
 		const providerConfig = this.config.providers?.[currentProvider as keyof typeof this.config.providers];
 
 		if (currentProvider !== 'ollama' && !providerConfig?.apiKey) {
-			throw new Error("API Key未配置");
+			throw new Error(t("API key is not configured"));
 		}
 
 		const aliasPrompt = this.generateAliasPrompt(word, fileType, path);
@@ -340,7 +341,7 @@ export class AIService {
 				temperature: 0.3
 			};
 		} else {
-			throw new Error("无效的API提供商配置");
+			throw new Error(t("Invalid API provider configuration"));
 		}
 
 		try {
@@ -385,12 +386,14 @@ export class AIService {
 				if (data.response) aliasText = data.response.trim();
 			}
 
-			if (!aliasText) throw new Error(`AI返回空的别名结果。完整响应: ${JSON.stringify(data)}`);
+			if (!aliasText) {
+				throw new Error(t("AI returned an empty alias result: {{response}}", { response: JSON.stringify(data) }));
+			}
 
 			const aliases = aliasText
 				.split(/[,，、\n]/)
 				.map(a => a.trim())
-				.filter(a => a && a !== word && a.length < 50 && !a.match(/^\d+\./) && !/别名|例如|：/.test(a))
+				.filter(a => a && a !== word && a.length < 50 && !a.match(/^\d+\./) && !/别名|例如|aliases?|for example|e\.g\.|：/i.test(a))
 				.map(a => a.replace(/^["'`。，]+|["'`。，]+$/g, '').trim())
 				.filter(a => a.length > 0)
 				.slice(0, 5);
@@ -401,4 +404,4 @@ export class AIService {
 			throw error;
 		}
 	}
-} 
+}

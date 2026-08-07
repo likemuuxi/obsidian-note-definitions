@@ -6,6 +6,7 @@ import { FileParser } from "./file-parser";
 import { DefFileType } from "./file-type";
 import { FrontmatterBuilder } from "./fm-builder";
 import { Definition, FilePosition } from "./model";
+import { t } from "src/i18n";
 
 export const DEFINITIONS_UPDATED_EVENT = "obsidian-note-definitions:definitions-updated";
 
@@ -26,7 +27,7 @@ export class DefFileUpdater {
 		}
 		await getDefFileManager().loadUpdatedFiles();
 		this.notifyDefinitionsUpdated();
-		new Notice("Definition successfully modified");
+		new Notice(t("Definition successfully modified"));
 	}
 
 	async deleteDefinition(def: Definition) {
@@ -39,7 +40,7 @@ export class DefFileUpdater {
 		}
 		await getDefFileManager().loadUpdatedFiles();
 		this.notifyDefinitionsUpdated();
-		new Notice("Definition successfully deleted");
+		new Notice(t("Definition successfully deleted"));
 	}
 
 	private async updateAtomicDefFile(def: Definition) {
@@ -107,7 +108,7 @@ export class DefFileUpdater {
 		}
 		await getDefFileManager().loadUpdatedFiles();
 		this.notifyDefinitionsUpdated();
-		new Notice("Definition succesfully added");
+		new Notice(t("Definition successfully added"));
 	}
 
 	private notifyDefinitionsUpdated() {

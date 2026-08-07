@@ -1,5 +1,6 @@
 import { App, Modal } from "obsidian";
 import { DefFileUpdater } from "src/core/def-file-updater";
+import { t } from "src/i18n";
 import { Definition } from "src/core/model";
 
 
@@ -17,31 +18,31 @@ export class EditDefinitionModal {
 
 	open(def: Definition) {
 		this.submitting = false;
-		this.modal.setTitle(`Edit definition for '${def.word}'`);
+		this.modal.setTitle(t("Edit definition for \"{{word}}\"", { word: def.word }));
 		this.modal.contentEl.createDiv({
 			cls: "edit-modal-section-header",
-			text: "Aliases"
+			text: t("Aliases")
 		})
 		const aliasText = this.modal.contentEl.createEl("textarea", {
 			cls: 'edit-modal-aliases',
 			attr: {
-				placeholder: "Add comma-separated aliases here"
+				placeholder: t("Add comma-separated aliases here")
 			},
 			text: def.aliases.join(", ")
 		});
 		this.modal.contentEl.createDiv({
 			cls: "edit-modal-section-header",
-			text: "Definition"
+			text: t("Definition")
 		})
 		const defText = this.modal.contentEl.createEl("textarea", {
 			cls: 'edit-modal-textarea',
 			attr: {
-				placeholder: "Add definition here"
+				placeholder: t("Add definition here")
 			},
 			text: def.definition
 		})
 		const button = this.modal.contentEl.createEl("button", {
-			text: "Save",
+			text: t("Save"),
 			cls: 'edit-modal-save-button',
 		});
 		button.addEventListener('click', () => {

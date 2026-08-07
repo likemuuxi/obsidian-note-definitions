@@ -5,6 +5,7 @@ import { AddDefinitionModal } from "src/editor/add-modal";
 import { DefFileType } from "src/core/file-type";
 import { DEFINITIONS_UPDATED_EVENT } from "src/core/def-file-updater";
 import { Definition } from "src/core/model";
+import { t } from "src/i18n";
 
 export const DEFINITION_SIDEBAR_VIEW_TYPE = "definition-sidebar-view";
 
@@ -106,7 +107,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		const jumpContainer = card.createDiv({ cls: "def-card-jump def-card-search-btn" });
 		const jumpBtn = jumpContainer.createEl("button", { cls: "def-card-action-btn" });
 		this.setIconWithLabel(jumpBtn, "search");
-		jumpBtn.setAttribute("aria-label", "Find in note");
+		jumpBtn.setAttribute("aria-label", t("Find in note"));
 		jumpBtn.addEventListener("click", (e) => {
 			e.stopPropagation();
 			this.openSearchView(def);
@@ -123,7 +124,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
-			new Notice("No active file to search in.");
+			new Notice(t("No active file to search in."));
 			return;
 		}
 
@@ -144,7 +145,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		lines.forEach((line, idx) => {
 			if (!matchRegex) return;
 			if (matchRegex.test(line)) {
-				matches.push({ line: idx, text: line.trim() || "(blank line)" });
+				matches.push({ line: idx, text: line.trim() || `(${t("Blank line")})` });
 			}
 		});
 
@@ -162,7 +163,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 	private renderSearchResults(container: Element) {
 		const header = container.createDiv({ cls: "def-search-header" });
 		const backBtn = header.createEl("button", { cls: "def-toolbar-btn" });
-		this.setIconWithLabel(backBtn, "arrow-left", "Back");
+		this.setIconWithLabel(backBtn, "arrow-left", t("Back"));
 		backBtn.addEventListener("click", () => {
 			this.searchResults = null;
 			this.selectedSearchMatchIndex = null;
@@ -170,13 +171,13 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		});
 
 		const title = header.createEl("div", { cls: "def-search-title" });
-		title.setText(`Matches for "${this.searchResults?.def.word}"`);
+		title.setText(t("Matches for \"{{word}}\"", { word: this.searchResults?.def.word ?? "" }));
 
 		const content = container.createDiv({ cls: "def-search-results" });
 
 		if (!this.searchResults || this.searchResults.matches.length === 0) {
 			const empty = content.createDiv({ cls: "def-manager-empty" });
-			empty.createDiv({ text: "No matching lines found in this note.", cls: "def-empty-title" });
+			empty.createDiv({ text: t("No matching lines found in this note."), cls: "def-empty-title" });
 			return;
 		}
 
@@ -193,7 +194,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 			const header = card.createDiv({ cls: "def-usage-header" });
 
 			const lineBadge = header.createDiv({ cls: "def-usage-line" });
-			lineBadge.textContent = `Line ${match.line + 1}`;
+			lineBadge.textContent = t("Line {{line}}", { line: match.line + 1 });
 
 			const fileLabel = header.createDiv({ cls: "def-usage-file" });
 			fileLabel.textContent = this.searchResults?.file.name ?? "";
@@ -262,7 +263,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		if (!this.activeFile) {
 			const empty = container.createDiv({ cls: "def-manager-empty" });
-			empty.createDiv({ text: "Open a definition file to view its content", cls: "def-empty-title" });
+			empty.createDiv({ text: t("Open a definition file to view its content"), cls: "def-empty-title" });
 			return;
 		}
 
@@ -276,7 +277,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		const searchInput = searchContainer.createEl("input", {
 			cls: "search-input",
 			type: "search",
-			attr: { placeholder: "搜索定义..." }
+			attr: { placeholder: t("Search definitions...") }
 		});
 		searchInput.value = this.searchTerm;
 		searchInput.addEventListener('input', (e) => {
@@ -291,7 +292,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		const toggleAllBtn = actions.createEl("button", { cls: "def-toolbar-btn icon-only" });
 		const updateToggleBtn = () => {
 			const icon = expandAll ? "fold-vertical" : "unfold-vertical";
-			const label = expandAll ? "Collapse all definitions" : "Expand all definitions";
+			const label = expandAll ? t("Collapse all definitions") : t("Expand all definitions");
 			this.setIconWithLabel(toggleAllBtn, icon);
 			toggleAllBtn.setAttr("aria-label", label);
 			toggleAllBtn.setAttr("title", label);
@@ -299,23 +300,23 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		updateToggleBtn();
 
 		const sortOptions = [
-			{ key: 'name', order: 'asc', label: '文件名 (A-Z)' },
-			{ key: 'name', order: 'desc', label: '文件名 (Z-A)' },
-			{ key: 'occurrences', order: 'desc', label: '出现次数（多到少）' },
-			{ key: 'occurrences', order: 'asc', label: '出现次数（少到多）' },
-			{ key: 'modified', order: 'desc', label: '编辑时间（从新到旧）' },
-			{ key: 'modified', order: 'asc', label: '编辑时间（从旧到新）' },
-			{ key: 'created', order: 'desc', label: '创建时间（从新到旧）' },
-			{ key: 'created', order: 'asc', label: '创建时间（从旧到新）' },
+			{ key: 'name', order: 'asc', label: t("File name (A–Z)") },
+			{ key: 'name', order: 'desc', label: t("File name (Z–A)") },
+			{ key: 'occurrences', order: 'desc', label: t("Occurrences (high to low)") },
+			{ key: 'occurrences', order: 'asc', label: t("Occurrences (low to high)") },
+			{ key: 'modified', order: 'desc', label: t("Modified (newest first)") },
+			{ key: 'modified', order: 'asc', label: t("Modified (oldest first)") },
+			{ key: 'created', order: 'desc', label: t("Created (newest first)") },
+			{ key: 'created', order: 'asc', label: t("Created (oldest first)") },
 		];
 
 		const sortRow = topControls.createDiv({ cls: "def-sort-row" });
 		const sortControls = sortRow.createDiv({ cls: "def-sort-controls" });
 
 		const typeLabels: Record<string, string> = {
-			all: "All",
-			[DefFileType.Atomic]: "Atomic",
-			[DefFileType.Consolidated]: "Consolidated",
+			all: t("All"),
+			[DefFileType.Atomic]: t("Atomic"),
+			[DefFileType.Consolidated]: t("Consolidated"),
 		};
 		const typeDropdown = new DropdownComponent(sortControls);
 		typeDropdown.selectEl.addClass("def-type-dropdown");
@@ -389,7 +390,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 
 		if (this.filteredDefinitions.length === 0) {
 			const empty = list.createDiv({ cls: "def-manager-empty" });
-			empty.createDiv({ text: "No matching definitions", cls: "def-empty-title" });
+			empty.createDiv({ text: t("No matching definitions"), cls: "def-empty-title" });
 			return;
 		}
 
@@ -403,7 +404,7 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 	}
 
 	getDisplayText() {
-		return "Definition Sidebar";
+		return t("Definition Sidebar");
 	}
 
 	getIcon() {

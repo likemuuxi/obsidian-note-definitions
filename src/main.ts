@@ -21,6 +21,7 @@ import { registerDefFile } from './editor/def-file-registration';
 import { DefFileType } from './core/file-type';
 import { DefFileUpdater, DEFINITIONS_UPDATED_EVENT } from './core/def-file-updater';
 import { Modal } from 'obsidian';
+import { t } from './i18n';
 
 
 export default class NoteDefinition extends Plugin {
@@ -51,7 +52,7 @@ export default class NoteDefinition extends Plugin {
 		);
 
 		// 添加侧边栏图标
-		this.addRibbonIcon('swatch-book', 'Definition Manager', () => {
+		this.addRibbonIcon('swatch-book', t('Definition Manager'), () => {
 			this.activateDefinitionManagerView();
 		});
 
@@ -83,7 +84,7 @@ export default class NoteDefinition extends Plugin {
 	registerCommands() {
 		this.addCommand({
 			id: "preview-definition",
-			name: "Preview definition",
+			name: t("Preview definition"),
 			editorCallback: (editor) => {
 				const curWord = getMarkedWordUnderCursor(editor);
 				if (!curWord) return;
@@ -95,7 +96,7 @@ export default class NoteDefinition extends Plugin {
 
 		this.addCommand({
 			id: "goto-definition",
-			name: "Go to definition",
+			name: t("Go to definition"),
 			editorCallback: (editor) => {
 				const currWord = getMarkedWordUnderCursor(editor);
 				if (!currWord) return;
@@ -107,7 +108,7 @@ export default class NoteDefinition extends Plugin {
 
 		this.addCommand({
 			id: "add-definition",
-			name: "Add definition",
+			name: t("Add definition"),
 			editorCallback: (editor) => {
 				const selectedText = editor.getSelection();
 				const addModal = new AddDefinitionModal(this.app);
@@ -117,11 +118,11 @@ export default class NoteDefinition extends Plugin {
 
 		this.addCommand({
 			id: "add-def-context",
-			name: "Add definition context",
+			name: t("Add definition context"),
 			editorCallback: (editor) => {
 				const activeFile = this.app.workspace.getActiveFile();
 				if (!activeFile) {
-					new Notice("Command must be used within an active opened file");
+					new Notice(t("Command must be used within an active opened file"));
 					return;
 				}
 				const suggestModal = new FMSuggestModal(this.app, activeFile);
@@ -131,7 +132,7 @@ export default class NoteDefinition extends Plugin {
 
 		this.addCommand({
 			id: "refresh-definitions",
-			name: "Refresh definitions",
+			name: t("Refresh definitions"),
 			callback: async () => {
 				this.fileExplorerDeco.run();
 				await this.defManager.loadDefinitions();
@@ -144,11 +145,11 @@ export default class NoteDefinition extends Plugin {
 
 		this.addCommand({
 			id: "register-consolidated-def-file",
-			name: "Register consolidated definition file",
+			name: t("Register consolidated definition file"),
 			editorCallback: (_) => {
 				const activeFile = this.app.workspace.getActiveFile();
 				if (!activeFile) {
-					new Notice("Command must be used within an active opened file");
+					new Notice(t("Command must be used within an active opened file"));
 					return;
 				}
 				registerDefFile(this.app, activeFile, DefFileType.Consolidated);
@@ -157,11 +158,11 @@ export default class NoteDefinition extends Plugin {
 
 		this.addCommand({
 			id: "register-atomic-def-file",
-			name: "Register atomic definition file",
+			name: t("Register atomic definition file"),
 			editorCallback: (_) => {
 				const activeFile = this.app.workspace.getActiveFile();
 				if (!activeFile) {
-					new Notice("Command must be used within an active opened file");
+					new Notice(t("Command must be used within an active opened file"));
 					return;
 				}
 				registerDefFile(this.app, activeFile, DefFileType.Atomic);
@@ -170,7 +171,7 @@ export default class NoteDefinition extends Plugin {
 
 		this.addCommand({
 			id: "open-definition-manager",
-			name: "Open Definition Manager",
+			name: t("Open Definition Manager"),
 			callback: () => {
 				this.activateDefinitionManagerView();
 			}
@@ -178,7 +179,7 @@ export default class NoteDefinition extends Plugin {
 
 		this.addCommand({
 			id: "open-definition-sidebar",
-			name: "Open Definition Sidebar",
+			name: t("Open Definition Sidebar"),
 			callback: () => {
 				this.activateDefinitionSidebarView();
 			}
@@ -210,7 +211,7 @@ export default class NoteDefinition extends Plugin {
 			if (!curWord) {
 				if (editor.getSelection()) {
 					menu.addItem(item => {
-						item.setTitle("Add definition")
+						item.setTitle(t("Add definition"))
 						item.setIcon("plus")
 							.onClick(() => {
 								const addModal = new AddDefinitionModal(this.app);
@@ -231,7 +232,7 @@ export default class NoteDefinition extends Plugin {
 		this.registerEvent(this.app.workspace.on("file-menu", (menu, file, source) => {
 			if (file instanceof TFolder) {
 				menu.addItem(item => {
-					item.setTitle("Set definition folder")
+					item.setTitle(t("Set definition folder"))
 						.setIcon("book-a")
 						.onClick(() => {
 							const settings = getSettings();
@@ -274,7 +275,7 @@ export default class NoteDefinition extends Plugin {
 
 	registerMenuForMarkedWords(menu: Menu, def: Definition) {
 		menu.addItem((item) => {
-			item.setTitle("Go to definition")
+			item.setTitle(t("Go to definition"))
 				.setIcon("arrow-left-from-line")
 				.onClick(() => {
 					this.app.workspace.openLinkText(def.linkText, '');
@@ -282,7 +283,7 @@ export default class NoteDefinition extends Plugin {
 		})
 
 		menu.addItem(item => {
-			item.setTitle("Edit definition")
+			item.setTitle(t("Edit definition"))
 				.setIcon("pencil")
 				.onClick(() => {
 					const editModal = new EditDefinitionModal(this.app);
@@ -291,7 +292,7 @@ export default class NoteDefinition extends Plugin {
 		});
 
 		menu.addItem(item => {
-			item.setTitle("Delete definition")
+			item.setTitle(t("Delete definition"))
 				.setIcon("trash")
 				.onClick(async () => {
 					// 显示确认对话框
@@ -420,18 +421,18 @@ export default class NoteDefinition extends Plugin {
 	private async showDeleteConfirmation(def: Definition): Promise<boolean> {
 		return new Promise((resolve) => {
 			const modal = new Modal(this.app);
-			modal.setTitle("Confirm the deletion definition");
+			modal.setTitle(t("Confirm deletion"));
 
 			const content = modal.contentEl;
 
 			if (def.fileType === DefFileType.Atomic) {
 				content.createEl("p", {
-					text: "This will delete the entire file.",
+					text: t("This will delete the entire file."),
 					cls: "mod-warning"
 				});
 			} else {
 				content.createEl("p", {
-					text: "This will remove this definition from the consolidated file."
+					text: t("This will remove this definition from the consolidated file.")
 				});
 			}
 
@@ -443,9 +444,9 @@ export default class NoteDefinition extends Plugin {
 			buttonContainer.style.gap = "10px";
 			buttonContainer.style.marginTop = "20px";
 
-			const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
+			const cancelButton = buttonContainer.createEl("button", { text: t("Cancel") });
 			const deleteButton = buttonContainer.createEl("button", {
-				text: "Delete",
+				text: t("Delete"),
 				cls: "mod-warning"
 			});
 

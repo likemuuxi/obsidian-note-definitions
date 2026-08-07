@@ -23,9 +23,9 @@ export interface GlobalVars {
 
 // Initialise and inject globals
 export function injectGlobals(settings: Settings, app: App, targetWindow: Window) {
-	targetWindow.NoteDefinition = {
+	const noteDef: GlobalVars = {
 		app: app,
-		LOG_LEVEL: activeWindow.NoteDefinition?.LOG_LEVEL || LogLevel.Error,
+		LOG_LEVEL: targetWindow.NoteDefinition?.LOG_LEVEL || LogLevel.Error,
 		definitions: {
 			global: new DefinitionRepo(),
 		},
@@ -69,5 +69,9 @@ export function injectGlobals(settings: Settings, app: App, targetWindow: Window
 			defPopover.openAtCoords(def, el.getBoundingClientRect());
 		},
 		settings,
+	};
+	targetWindow.NoteDefinition = noteDef;
+	if (activeWindow !== targetWindow) {
+		activeWindow.NoteDefinition = noteDef;
 	}
 }

@@ -5,6 +5,7 @@ import { DefFileType } from "src/core/file-type";
 import { FileParser } from "src/core/file-parser";
 import { AIService } from "src/core/ai-service";
 import { DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT, AIConfig } from "src/settings";
+import { t } from "src/i18n";
 
 export class AddDefinitionModal {
 	app: App;
@@ -72,7 +73,7 @@ export class AddDefinitionModal {
 		// 更新AI服务配置，确保获取最新的映射设置
 		this.aiService.updateConfig(this.getAIConfig());
 		
-		this.modal.setTitle("Add Definition");
+		this.modal.setTitle(t("Add Definition"));
 		
 		// 清空默认标题并创建自定义标题栏
 		this.modal.titleEl.empty();
@@ -83,7 +84,7 @@ export class AddDefinitionModal {
 		titleContainer.style.gap = "10px";
 		
 		const titleText = titleContainer.createSpan({ 
-			text: "Add Definition",
+			text: t("Add Definition"),
 			cls: "modal-title-text"
 		});
 		titleText.style.fontSize = "var(--modal-title-size)";
@@ -93,7 +94,7 @@ export class AddDefinitionModal {
 			text: "✨ AI",
 			cls: "ai-generate-button-inline",
 			attr: {
-				title: "使用AI生成定义和别名（可在设置中自定义prompt）"
+				title: t("Generate definition and aliases with AI (prompts can be customized in settings)")
 			}
 		});
 		
@@ -101,7 +102,7 @@ export class AddDefinitionModal {
 			text: "⚙️",
 			cls: "ai-settings-button-inline",
 			attr: {
-				title: "查看和修改当前prompt设置"
+				title: t("View and edit the current prompt settings")
 			}
 		});
 		setIcon(settingsButton, "settings");
@@ -115,35 +116,35 @@ export class AddDefinitionModal {
 		
 		this.modal.contentEl.createDiv({
 			cls: "edit-modal-section-header",
-			text: "Word/Phrase"
+			text: t("Word/Phrase")
 		})
 		const phraseText = this.modal.contentEl.createEl("textarea", {
 			cls: 'edit-modal-aliases',
 			attr: {
-				placeholder: "Word/phrase to be defined"
+				placeholder: t("Word/phrase to be defined")
 			},
 			text: text ?? ''
 		});
 		
 		this.modal.contentEl.createDiv({
 			cls: "edit-modal-section-header",
-			text: "Aliases"
+			text: t("Aliases")
 		})
 		const aliasText = this.modal.contentEl.createEl("textarea", {
 			cls: 'edit-modal-aliases',
 			attr: {
-				placeholder: "Add comma-separated aliases here"
+				placeholder: t("Add comma-separated aliases here")
 			},
 		});
 		
 		this.modal.contentEl.createDiv({
 			cls: "edit-modal-section-header",
-			text: "Definition"
+			text: t("Definition")
 		});
 		const defText = this.modal.contentEl.createEl("textarea", {
 			cls: 'edit-modal-textarea',
 			attr: {
-				placeholder: "Add definition here"
+				placeholder: t("Add definition here")
 			},
 		});
 
@@ -151,7 +152,7 @@ export class AddDefinitionModal {
 		aiButton.addEventListener('click', async () => {
 			const word = phraseText.value.trim();
 			if (!word) {
-				new Notice("请先输入要定义的词语");
+				new Notice(t("Please enter a word or phrase first"));
 				return;
 			}
 			
@@ -160,7 +161,7 @@ export class AddDefinitionModal {
 			const providerConfig = providers?.[currentProvider as keyof typeof providers];
 			
 			if (currentProvider !== 'ollama' && !providerConfig?.apiKey) {
-				new Notice("请先在插件设置中配置API Key");
+				new Notice(t("Please configure an API key in the plugin settings first"));
 				return;
 			}
 			
@@ -177,7 +178,7 @@ export class AddDefinitionModal {
 			}
 			
 			// 显示加载状态
-			aiButton.setText("🔄 生成中...");
+			aiButton.setText(`🔄 ${t("Generating...")}`);
 			aiButton.disabled = true;
 			aiButton.style.backgroundColor = "#a0a0a0";
 			
@@ -201,7 +202,7 @@ export class AddDefinitionModal {
 				const safeAliases = Array.isArray(aliases) ? aliases.filter(a => typeof a === "string" && a.trim()) : [];
 
 				if (!safeDefinition && safeAliases.length === 0) {
-					new Notice("AI没有返回定义或别名，请重试或检查配置");
+					new Notice(t("AI returned neither a definition nor aliases. Please retry or check the configuration."));
 					return;
 				}
 
@@ -209,7 +210,7 @@ export class AddDefinitionModal {
 				if (safeDefinition) {
 					defText.value = safeDefinition;
 				} else {
-					new Notice("AI没有返回定义，请手动填写或重试");
+					new Notice(t("AI did not return a definition. Please enter one manually or retry."));
 				}
 				
 				// 填充别名文本框（只有当前为空时才填充）
@@ -217,7 +218,7 @@ export class AddDefinitionModal {
 					if (safeAliases.length > 0) {
 						aliasText.value = safeAliases.join(', ');
 					} else {
-						new Notice("AI没有返回别名，可手动添加");
+						new Notice(t("AI did not return aliases. You can add them manually."));
 					}
 				}
 
@@ -228,7 +229,7 @@ export class AddDefinitionModal {
 				console.error("AI生成失败详细信息:", error);
 				// 显示更详细的错误信息
 				const errorMessage = error instanceof Error ? error.message : String(error);
-				new Notice(`❌ AI生成失败: ${errorMessage}`);
+				new Notice(`❌ ${t("AI generation failed: {{error}}", { error: errorMessage })}`);
 			} finally {
 				// 恢复按钮状态
 				aiButton.setText("✨ AI");
@@ -238,10 +239,10 @@ export class AddDefinitionModal {
 		});
 
 		new Setting(this.modal.contentEl)
-			.setName("Definition file type")
+			.setName(t("Definition file type"))
 			.addDropdown(component => {
-				component.addOption(DefFileType.Atomic, "Atomic");
-				component.addOption(DefFileType.Consolidated, "Consolidated");
+				component.addOption(DefFileType.Atomic, t("Atomic"));
+				component.addOption(DefFileType.Consolidated, t("Consolidated"));
 				// 设置默认值为配置文件中的defaultFileType
 				const settings = window.NoteDefinition.settings;
 				component.setValue(settings.defFileParseConfig.defaultFileType);
@@ -263,7 +264,7 @@ export class AddDefinitionModal {
 		
 		// Consolidated类型的子文件夹选择器
 		this.consolidatedSubfolderPickerSetting = new Setting(this.modal.contentEl)
-			.setName("Subfolder")
+			.setName(t("Subfolder"))
 			.addDropdown(component => {
 				const defFiles = defManager.getConsolidatedDefFiles();
 				const defFolders = defManager.getDefFolders();
@@ -309,13 +310,13 @@ export class AddDefinitionModal {
 			});
 
 		this.defFilePickerSetting = new Setting(this.modal.contentEl)
-			.setName("Definition file")
+			.setName(t("Definition file"))
 			.addDropdown(component => {
 				this.defFilePicker = component;
 			})
 			.addButton(button => {
 				button.setButtonText("+")
-				.setTooltip("Create a new definition file")
+				.setTooltip(t("Create a new definition file"))
 				.onClick(async () => {
 					await this.createNewDefFile();
 				});
@@ -327,7 +328,7 @@ export class AddDefinitionModal {
 		this.refreshDefFileDropdown(firstFolder);
 
 		this.atomicFolderPickerSetting = new Setting(this.modal.contentEl)
-			.setName("Add file to folder")
+			.setName(t("Add file to folder"))
 			.addDropdown(component => {
 				const defManager = getDefFileManager();
 				const defFolders = defManager.getDefFolders();
@@ -368,7 +369,7 @@ export class AddDefinitionModal {
 			})
 			.addButton(button => {
 				button.setButtonText("+")
-				.setTooltip("Create a new subfolder")
+				.setTooltip(t("Create a new subfolder"))
 				.onClick(async () => {
 					await this.createNewSubfolder();
 				});
@@ -387,7 +388,7 @@ export class AddDefinitionModal {
 		}
 
 		const button = this.modal.contentEl.createEl("button", {
-			text: "Save",
+			text: t("Save"),
 			cls: 'edit-modal-save-button',
 		});
 		button.addEventListener('click', () => {
@@ -395,16 +396,16 @@ export class AddDefinitionModal {
 				return;
 			}
 			if (!phraseText.value || !defText.value) {
-				new Notice("Please fill in a definition value");
+				new Notice(t("Please fill in a definition value"));
 				return;
 			}
 			
 			const fileType = this.fileTypePicker.getValue();
 			if (fileType === DefFileType.Consolidated && !this.defFilePicker.getValue()) {
-				new Notice("Please choose a definition file. If you do not have any definition files, please create one.")
+				new Notice(t("Please choose a definition file. If you do not have any definition files, please create one."))
 				return;
 			} else if (fileType === DefFileType.Atomic && !this.atomicFolderPicker.getValue()) {
-				new Notice("Please choose a folder for the atomic definition file.")
+				new Notice(t("Please choose a folder for the atomic definition file."))
 				return;
 			}
 			
@@ -428,13 +429,13 @@ export class AddDefinitionModal {
 
 	private async createNewSubfolder() {
 		const inputModal = new Modal(this.app);
-		inputModal.setTitle("Create definition subcategory folders");
+		inputModal.setTitle(t("Create definition subcategory folders"));
 		
 		const inputContainer = inputModal.contentEl.createDiv();
 		
 		const input = inputContainer.createEl("input", {
 			type: "text",
-			placeholder: "Enter folders name"
+			placeholder: t("Enter folder name")
 		});
 		input.style.width = "100%";
 		input.style.marginBottom = "10px";
@@ -446,8 +447,8 @@ export class AddDefinitionModal {
 		buttonContainer.style.justifyContent = "flex-end";
 		buttonContainer.style.gap = "10px";
 		
-		const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
-		const createButton = buttonContainer.createEl("button", { text: "Create" });
+		const cancelButton = buttonContainer.createEl("button", { text: t("Cancel") });
+		const createButton = buttonContainer.createEl("button", { text: t("Create") });
 		createButton.addClass("mod-cta");
 		
 		return new Promise<void>((resolve) => {
@@ -472,14 +473,14 @@ export class AddDefinitionModal {
 							// 选择新创建的文件夹
 							this.atomicFolderPicker.setValue(newFolderPath + "/");
 							
-							new Notice(`Subfolders have been created: ${newFolderPath}`);
+							new Notice(t("Subfolders have been created: {{path}}", { path: newFolderPath }));
 						} catch (error: any) {
 							const message = error?.message || String(error);
 							// Obsidian 会在文件夹已存在时抛出异常，单独提示
 							if (message.toLowerCase().includes("exists")) {
-								new Notice("The subfolder already exists.");
+								new Notice(t("The subfolder already exists."));
 							} else {
-								new Notice(`Failed to create the subfolder: ${message}`);
+								new Notice(t("Failed to create the subfolder: {{error}}", { error: message }));
 							}
 						}
 					}
@@ -553,13 +554,13 @@ export class AddDefinitionModal {
 
 	private async createNewDefFile() {
 		const inputModal = new Modal(this.app);
-		inputModal.setTitle("Create consolidated definition file");
+		inputModal.setTitle(t("Create consolidated definition file"));
 		
 		const inputContainer = inputModal.contentEl.createDiv()
 		
 		const input = inputContainer.createEl("input", {
 			type: "text",
-			placeholder: "Enter file name"
+			placeholder: t("Enter file name")
 		});
 		input.style.width = "100%";
 		input.style.marginBottom = "10px";
@@ -571,8 +572,8 @@ export class AddDefinitionModal {
 		buttonContainer.style.justifyContent = "flex-end";
 		buttonContainer.style.gap = "10px";
 		
-		const cancelButton = buttonContainer.createEl("button", { text: "Cancel" });
-		const createButton = buttonContainer.createEl("button", { text: "Create" });
+		const cancelButton = buttonContainer.createEl("button", { text: t("Cancel") });
+		const createButton = buttonContainer.createEl("button", { text: t("Create") });
 		createButton.addClass("mod-cta");
 		
 		return new Promise<void>((resolve) => {
@@ -613,9 +614,10 @@ export class AddDefinitionModal {
 							// 选择新创建的文件
 							this.defFilePicker.setValue(filePath);
 							
-							new Notice(`Definition file created: ${filePath}`);
+							new Notice(t("Definition file created: {{path}}", { path: filePath }));
 						} catch (error) {
-							new Notice(`Failed to create definition file: ${error.message}`);
+							const message = error instanceof Error ? error.message : String(error);
+							new Notice(t("Failed to create definition file: {{error}}", { error: message }));
 						}
 					}
 				}
@@ -685,7 +687,7 @@ export class AddDefinitionModal {
 
 	private showPromptSettingsModal() {
 		const modal = new Modal(this.app);
-		modal.setTitle("当前Prompt设置");
+		modal.setTitle(t("Current prompt settings"));
 
 		const content = modal.contentEl;
 
@@ -723,18 +725,21 @@ export class AddDefinitionModal {
 		pathInfo.style.backgroundColor = "var(--background-secondary)";
 		pathInfo.style.borderRadius = "5px";
 		
-		const pathTitle = pathInfo.createEl("h4", { text: "当前选择" });
+		const pathTitle = pathInfo.createEl("h4", { text: t("Current selection") });
 		pathTitle.style.margin = "0 0 10px 0";
 		
-		const typeSpan = pathInfo.createDiv({ text: `文件类型: ${fileType === 'atomic' ? 'Atomic' : 'Consolidated'}` });
-		const pathSpan = pathInfo.createDiv({ text: `路径: ${targetPath || '未选择'}` });
+		const fileTypeLabel = fileType === 'atomic' ? t("Atomic") : t("Consolidated");
+		const typeSpan = pathInfo.createDiv({ text: t("File type: {{type}}", { type: fileTypeLabel }) });
+		const pathSpan = pathInfo.createDiv({ text: t("Path: {{path}}", { path: targetPath || t("Not selected") }) });
 
 		// 定义Prompt部分
 		const defPromptSection = content.createDiv({ cls: "prompt-section" });
 		defPromptSection.style.marginBottom = "20px";
 		
 		const defPromptTitle = defPromptSection.createEl("h4", { 
-			text: `定义生成Prompt ${isUsingMappedDefPrompt ? '(已映射)' : '(默认)'}`
+			text: t("Definition prompt {{source}}", {
+				source: t(isUsingMappedDefPrompt ? "Mapped" : "Default")
+			})
 		});
 		defPromptTitle.style.marginBottom = "10px";
 		if (isUsingMappedDefPrompt) {
@@ -754,7 +759,9 @@ export class AddDefinitionModal {
 		aliasPromptSection.style.marginBottom = "20px";
 		
 		const aliasPromptTitle = aliasPromptSection.createEl("h4", { 
-			text: `别名生成Prompt ${isUsingMappedAliasPrompt ? '(已映射)' : '(默认)'}`
+			text: t("Alias prompt {{source}}", {
+				source: t(isUsingMappedAliasPrompt ? "Mapped" : "Default")
+			})
 		});
 		aliasPromptTitle.style.marginBottom = "10px";
 		if (isUsingMappedAliasPrompt) {
@@ -781,13 +788,13 @@ export class AddDefinitionModal {
 		leftButtons.style.display = "flex";
 		leftButtons.style.gap = "10px";
 
-		const resetButton = leftButtons.createEl("button", { text: "重置为默认" });
+		const resetButton = leftButtons.createEl("button", { text: t("Reset to default") });
 		resetButton.onclick = () => {
 			defPromptTextArea.value = this.aiService.aiConfig.customPrompt || '';
 			aliasPromptTextArea.value = this.aiService.aiConfig.customAliasPrompt || '';
 		};
 
-		const manageButton = leftButtons.createEl("button", { text: "管理映射" });
+		const manageButton = leftButtons.createEl("button", { text: t("Manage mappings") });
 		manageButton.onclick = () => {
 			modal.close();
 			// 打开插件设置页面的映射管理
@@ -802,14 +809,14 @@ export class AddDefinitionModal {
 		rightButtons.style.display = "flex";
 		rightButtons.style.gap = "10px";
 
-		const cancelButton = rightButtons.createEl("button", { text: "取消" });
+		const cancelButton = rightButtons.createEl("button", { text: t("Cancel") });
 		cancelButton.onclick = () => modal.close();
 
-		const saveButton = rightButtons.createEl("button", { text: "保存映射" });
+		const saveButton = rightButtons.createEl("button", { text: t("Save mapping") });
 		saveButton.addClass("mod-cta");
 		saveButton.onclick = async () => {
 			if (!targetPath) {
-				new Notice("请先选择文件夹或文件");
+				new Notice(t("Please select a folder or file first"));
 				return;
 			}
 
@@ -842,7 +849,7 @@ export class AddDefinitionModal {
 			}
 
 			// 触发设置保存 - 简化版本，直接更新设置
-			new Notice("✅ Prompt映射已保存");
+			new Notice(`✅ ${t("Prompt mapping saved")}`);
 			modal.close();
 		};
 

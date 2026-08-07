@@ -4,6 +4,7 @@ import { DefFileUpdater } from "src/core/def-file-updater";
 import { DefFileType } from "src/core/file-type";
 import { Definition } from "src/core/model";
 import { EditDefinitionModal } from "src/editor/edit-modal";
+import { getLocale, t } from "src/i18n";
 export const DEFINITION_MANAGER_VIEW_TYPE = "definition-manager-view";
 
 interface DefinitionWithSource extends Definition {
@@ -59,7 +60,7 @@ export class DefinitionManagerView extends ItemView {
     }
 
     getDisplayText() {
-        return "Definition Manager";
+        return t("Definition Manager");
     }
 
     getIcon() {
@@ -303,7 +304,7 @@ export class DefinitionManagerView extends ItemView {
         sidebar.empty();
 
         const header = sidebar.createDiv({ cls: "def-folder-sidebar-header" });
-        header.createEl("h3", { text: "Folders" });
+        header.createEl("h3", { text: t("Folders") });
 
         const list = sidebar.createDiv({ cls: "def-folder-sidebar-list" });
 
@@ -314,7 +315,7 @@ export class DefinitionManagerView extends ItemView {
         const allItem = list.createDiv({
             cls: `def-folder-item ${this.selectedFolder === null ? 'active' : ''}`
         });
-        allItem.createSpan({ cls: "def-folder-item-name", text: "All" });
+        allItem.createSpan({ cls: "def-folder-item-name", text: t("All") });
         allItem.createSpan({ cls: "def-folder-count", text: `${this.definitions.length}` });
         allItem.addEventListener("click", () => {
             this.selectedFolder = null;
@@ -439,7 +440,7 @@ export class DefinitionManagerView extends ItemView {
 		const searchInput = searchContainer.createEl("input", {
 			cls: "search-input",
 			type: "search",
-			attr: { placeholder: "搜索定义..." }
+			attr: { placeholder: t("Search definitions...") }
 		});
 		searchInput.value = this.searchTerm;
 		searchInput.addEventListener("input", (e) => {
@@ -452,9 +453,9 @@ export class DefinitionManagerView extends ItemView {
 		const sortControls = toolbar.createDiv({ cls: "def-sort-controls" });
 
 		const typeLabels: Record<string, string> = {
-			all: "All",
-			[DefFileType.Atomic]: "Atomic",
-			[DefFileType.Consolidated]: "Consolidated",
+			all: t("All"),
+			[DefFileType.Atomic]: t("Atomic"),
+			[DefFileType.Consolidated]: t("Consolidated"),
 		};
 
 		const typeDropdown = new DropdownComponent(sortControls);
@@ -485,14 +486,14 @@ export class DefinitionManagerView extends ItemView {
 
 		/* 4. Sort dropdown */
 		const sortOptions = [
-			{ key: "name", order: "asc", label: "文件名 (A-Z)" },
-			{ key: "name", order: "desc", label: "文件名 (Z-A)" },
-			{ key: "occurrences", order: "desc", label: "出现次数（多到少）" },
-			{ key: "occurrences", order: "asc", label: "出现次数（少到多）" },
-			{ key: "modified", order: "desc", label: "编辑时间（从新到旧）" },
-			{ key: "modified", order: "asc", label: "编辑时间（从旧到新）" },
-			{ key: "created", order: "desc", label: "创建时间（从新到旧）" },
-			{ key: "created", order: "asc", label: "创建时间（从旧到新）" },
+			{ key: "name", order: "asc", label: t("File name (A–Z)") },
+			{ key: "name", order: "desc", label: t("File name (Z–A)") },
+			{ key: "occurrences", order: "desc", label: t("Occurrences (high to low)") },
+			{ key: "occurrences", order: "asc", label: t("Occurrences (low to high)") },
+			{ key: "modified", order: "desc", label: t("Modified (newest first)") },
+			{ key: "modified", order: "asc", label: t("Modified (oldest first)") },
+			{ key: "created", order: "desc", label: t("Created (newest first)") },
+			{ key: "created", order: "asc", label: t("Created (oldest first)") },
 		];
 
 		const sortDropdown = new DropdownComponent(sortControls);
@@ -526,7 +527,7 @@ export class DefinitionManagerView extends ItemView {
 
 		const updateToggleBtn = () => {
 			const icon = expandAll ? "fold-vertical" : "unfold-vertical";
-			const label = expandAll ? "Collapse all definitions" : "Expand all definitions";
+			const label = expandAll ? t("Collapse all definitions") : t("Expand all definitions");
 			this.setIconWithLabel(toggleAllBtn, icon);
 			toggleAllBtn.setAttr("aria-label", label);
 			toggleAllBtn.setAttr("title", label);
@@ -584,12 +585,12 @@ export class DefinitionManagerView extends ItemView {
     private updateLayoutButton(btn: HTMLElement) {
         if (this.viewLayout === 'masonry') {
             this.setIconWithLabel(btn, "layout-grid");
-            btn.setAttribute("aria-label", "Switch to gallery view");
-            btn.title = "Switch to gallery view";
+            btn.setAttribute("aria-label", t("Switch to gallery view"));
+            btn.title = t("Switch to gallery view");
         } else {
             this.setIconWithLabel(btn, "gallery-horizontal");
-            btn.setAttribute("aria-label", "Switch to masonry view");
-            btn.title = "Switch to masonry view";
+            btn.setAttribute("aria-label", t("Switch to masonry view"));
+            btn.title = t("Switch to masonry view");
         }
     }
 
@@ -610,7 +611,7 @@ export class DefinitionManagerView extends ItemView {
 
         if (this.selectedFileType === DefFileType.Consolidated) {
             // Consolidated类型 - 按文件过滤
-            fileSelect.innerHTML = '<option value="all">All Files</option>';
+            fileSelect.createEl("option", { value: "all", text: t("All files") });
 
             const consolidatedFiles = new Set(
                 this.definitions
@@ -627,7 +628,7 @@ export class DefinitionManagerView extends ItemView {
             });
         } else if (this.selectedFileType === DefFileType.Atomic) {
             // Atomic类型 - 按文件夹过滤
-            fileSelect.innerHTML = '<option value="all">All Folders</option>';
+            fileSelect.createEl("option", { value: "all", text: t("All folders") });
 
             const atomicFolders = new Set(
                 this.definitions
@@ -683,8 +684,8 @@ export class DefinitionManagerView extends ItemView {
 			const empty = list.createDiv({ cls: "def-manager-empty" });
 			const emptyIcon = empty.createDiv({ cls: "def-empty-icon" });
 			setIcon(emptyIcon, "file-question");
-			empty.createDiv({ text: "No definitions found", cls: "def-empty-title" });
-			empty.createDiv({ text: "Try adjusting your search or filters", cls: "def-empty-subtitle" });
+			empty.createDiv({ text: t("No definitions found"), cls: "def-empty-title" });
+			empty.createDiv({ text: t("Try adjusting your search or filters"), cls: "def-empty-subtitle" });
 			return;
 		}
 
@@ -711,13 +712,13 @@ export class DefinitionManagerView extends ItemView {
         const navArea = list.createDiv({ cls: "def-gallery-nav" });
         const prevBtn = navArea.createEl("button", { cls: "def-gallery-nav-btn" });
         this.setIconWithLabel(prevBtn, "chevron-left");
-        prevBtn.setAttribute("aria-label", "Previous");
+        prevBtn.setAttribute("aria-label", t("Previous"));
 
         const counter = navArea.createEl("span", { cls: "def-gallery-counter" });
 
         const nextBtn = navArea.createEl("button", { cls: "def-gallery-nav-btn" });
         this.setIconWithLabel(nextBtn, "chevron-right");
-        nextBtn.setAttribute("aria-label", "Next");
+        nextBtn.setAttribute("aria-label", t("Next"));
 
         // 缩略图列表（只创建一次）
         const thumbStrip = list.createDiv({ cls: "def-gallery-thumbs" });
@@ -803,7 +804,7 @@ export class DefinitionManagerView extends ItemView {
 
         const editBtn = actions.createEl("button", { cls: "def-card-action-btn" });
         this.setIconWithLabel(editBtn, "pencil");
-        editBtn.setAttribute("aria-label", "Edit");
+        editBtn.setAttribute("aria-label", t("Edit"));
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.editDefinition(def);
@@ -811,12 +812,12 @@ export class DefinitionManagerView extends ItemView {
 
         const viewBtn = actions.createEl("button", { cls: "def-card-action-btn" });
         this.setIconWithLabel(viewBtn, "file-symlink");
-        viewBtn.setAttribute("aria-label", "View File");
+        viewBtn.setAttribute("aria-label", t("View file"));
         viewBtn.addEventListener('click', () => this.openSourceFile(def));
 
         const deleteBtn = actions.createEl("button", { cls: "def-card-action-btn" });
         this.setIconWithLabel(deleteBtn, "trash-2");
-        deleteBtn.setAttribute("aria-label", "Delete");
+        deleteBtn.setAttribute("aria-label", t("Delete"));
         deleteBtn.style.color = "red";
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -844,7 +845,9 @@ export class DefinitionManagerView extends ItemView {
 
         // 文件信息
         const fileInfo = card.createDiv({ cls: "def-gallery-card-info" });
-        fileInfo.innerHTML = `<span>📁 ${def.sourceFile.name}</span> · <span>${def.fileType}</span>`;
+        fileInfo.createSpan({ text: `📁 ${def.sourceFile.name}` });
+        fileInfo.appendText(" · ");
+        fileInfo.createSpan({ text: def.fileType === DefFileType.Atomic ? t("Atomic") : t("Consolidated") });
 
         return card;
     }
@@ -1137,8 +1140,8 @@ export class DefinitionManagerView extends ItemView {
 			cls: "def-card-action-btn"
 		});
 		this.setIconWithLabel(editBtn, "pencil");
-		editBtn.setAttribute("aria-label", "Edit");
-		editBtn.title = "Edit";
+		editBtn.setAttribute("aria-label", t("Edit"));
+		editBtn.title = t("Edit");
 		editBtn.addEventListener('click', (e) => {
 			e.stopPropagation();
 			console.log('Edit button clicked for:', def.word);
@@ -1149,16 +1152,16 @@ export class DefinitionManagerView extends ItemView {
 			cls: "def-card-action-btn"
 		});
 		this.setIconWithLabel(viewBtn, "file-symlink");
-		viewBtn.setAttribute("aria-label", "View File");
-		viewBtn.title = "View File";
+		viewBtn.setAttribute("aria-label", t("View file"));
+		viewBtn.title = t("View file");
 		viewBtn.addEventListener('click', () => this.openSourceFile(def));
 
 		const deleteBtn = actions.createEl("button", {
 			cls: "def-card-action-btn"
 		});
 		this.setIconWithLabel(deleteBtn, "trash-2");
-		deleteBtn.setAttribute("aria-label", "Delete");
-		deleteBtn.title = "Delete";
+		deleteBtn.setAttribute("aria-label", t("Delete"));
+		deleteBtn.title = t("Delete");
 		deleteBtn.style.color = "red";
 		deleteBtn.addEventListener('click', (e) => {
 			e.stopPropagation();
@@ -1188,7 +1191,7 @@ export class DefinitionManagerView extends ItemView {
             // 如果没有别名，显示一个占位符
             aliasesContainer.createSpan({
                 cls: "def-card-no-aliases",
-                text: "No aliases"
+                text: t("No aliases")
             });
         }
 
@@ -1232,7 +1235,7 @@ export class DefinitionManagerView extends ItemView {
 
             if (hasLongContent) {
                 definitionEl.style.cursor = 'pointer';
-                definitionEl.title = expanded ? '点击折叠' : '点击展开';
+                definitionEl.title = expanded ? t("Click to collapse") : t("Click to expand");
             } else {
                 definitionEl.style.cursor = 'default';
                 definitionEl.title = '';
@@ -1266,16 +1269,16 @@ export class DefinitionManagerView extends ItemView {
 
         // 时间信息
         const timeInfo = card.createDiv({ cls: "def-card-time-info" });
-        const createdTime = new Date(def.sourceFile.stat.ctime).toLocaleDateString();
-        const modifiedTime = new Date(def.sourceFile.stat.mtime).toLocaleDateString();
+        const createdTime = new Date(def.sourceFile.stat.ctime).toLocaleDateString(getLocale());
+        const modifiedTime = new Date(def.sourceFile.stat.mtime).toLocaleDateString(getLocale());
 
         timeInfo.createSpan({
             cls: "def-card-time-item",
-            text: `Created: ${createdTime}`
+            text: t("Created: {{date}}", { date: createdTime })
         });
         timeInfo.createSpan({
             cls: "def-card-time-item",
-            text: `Modified: ${modifiedTime}`
+            text: t("Modified: {{date}}", { date: modifiedTime })
         });
 
         return card;
@@ -1328,18 +1331,19 @@ export class DefinitionManagerView extends ItemView {
 			
 		} catch (error) {
 			console.error('Error in editDefinition:', error);
-			new Notice(`Failed to open edit dialog: ${error.message}`);
+			const message = error instanceof Error ? error.message : String(error);
+			new Notice(t("Failed to open edit dialog: {{error}}", { error: message }));
 		}
 	}
 
     private async deleteDefinition(def: DefinitionWithSource) {
         const confirmModal = new Modal(this.app);
-        confirmModal.setTitle("Confirm Deletion");
+        confirmModal.setTitle(t("Confirm deletion"));
 
         const content = confirmModal.contentEl;
-        content.createEl("p", { text: `Are you sure you want to delete the definition for "${def.word}"?` });
+        content.createEl("p", { text: t("Are you sure you want to delete the definition for \"{{word}}\"?", { word: def.word }) });
         content.createEl("p", {
-            text: "This action cannot be undone.",
+            text: t("This action cannot be undone."),
             cls: "mod-warning"
         });
 
@@ -1349,10 +1353,10 @@ export class DefinitionManagerView extends ItemView {
         buttonContainer.style.gap = "10px";
         buttonContainer.style.marginTop = "20px";
 
-        const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
+        const cancelBtn = buttonContainer.createEl("button", { text: t("Cancel") });
         cancelBtn.addEventListener('click', () => confirmModal.close());
 
-        const deleteBtn = buttonContainer.createEl("button", { text: "Delete" });
+        const deleteBtn = buttonContainer.createEl("button", { text: t("Delete") });
         deleteBtn.addClass("mod-warning");
         deleteBtn.addEventListener('click', async () => {
             try {
@@ -1372,7 +1376,7 @@ export class DefinitionManagerView extends ItemView {
 
                 await updater.deleteDefinition(defToDelete);
 
-                new Notice("Definition deleted successfully");
+                new Notice(t("Definition deleted successfully"));
                 confirmModal.close();
 
                 // 刷新列表
@@ -1380,7 +1384,8 @@ export class DefinitionManagerView extends ItemView {
                 this.updateDefinitionList();
 
             } catch (error) {
-                new Notice(`Failed to delete definition: ${error.message}`);
+                const message = error instanceof Error ? error.message : String(error);
+                new Notice(t("Failed to delete definition: {{error}}", { error: message }));
             }
         });
 
@@ -1394,15 +1399,15 @@ export class DefinitionManagerView extends ItemView {
 
     private async exportDefinitions() {
         const exportModal = new Modal(this.app);
-        exportModal.setTitle("Export Definitions");
+        exportModal.setTitle(t("Export definitions"));
 
         const content = exportModal.contentEl;
 
         // 导出格式选择
         let exportFormat = 'json';
         new Setting(content)
-            .setName("Export Format")
-            .setDesc("Choose the format for exporting definitions")
+            .setName(t("Export format"))
+            .setDesc(t("Choose the format for exporting definitions"))
             .addDropdown(component => {
                 component.addOption('json', 'JSON');
                 component.addOption('csv', 'CSV');
@@ -1416,11 +1421,11 @@ export class DefinitionManagerView extends ItemView {
         // 导出范围选择
         let exportScope = 'filtered';
         new Setting(content)
-            .setName("Export Scope")
-            .setDesc("Choose which definitions to export")
+            .setName(t("Export scope"))
+            .setDesc(t("Choose which definitions to export"))
             .addDropdown(component => {
-                component.addOption('filtered', `Current Filter (${this.filteredDefinitions.length} definitions)`);
-                component.addOption('all', `All Definitions (${this.definitions.length} definitions)`);
+                component.addOption('filtered', t("Current filter ({{count}} definitions)", { count: this.filteredDefinitions.length }));
+                component.addOption('all', t("All definitions ({{count}} definitions)", { count: this.definitions.length }));
                 component.setValue(exportScope);
                 component.onChange(value => {
                     exportScope = value;
@@ -1434,10 +1439,10 @@ export class DefinitionManagerView extends ItemView {
         buttonContainer.style.gap = "10px";
         buttonContainer.style.marginTop = "20px";
 
-        const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
+        const cancelBtn = buttonContainer.createEl("button", { text: t("Cancel") });
         cancelBtn.addEventListener('click', () => exportModal.close());
 
-        const exportBtn = buttonContainer.createEl("button", { text: "Export" });
+        const exportBtn = buttonContainer.createEl("button", { text: t("Export") });
         exportBtn.addClass("mod-cta");
         exportBtn.addEventListener('click', () => {
             const defsToExport = exportScope === 'all' ? this.definitions : this.filteredDefinitions;
@@ -1467,7 +1472,7 @@ export class DefinitionManagerView extends ItemView {
                 break;
 
             case 'csv':
-                const csvHeaders = ['Word', 'Aliases', 'Definition', 'File Type', 'Source File'];
+                const csvHeaders = [t("Word"), t("Aliases"), t("Definition"), t("File type"), t("Source file")];
                 const csvRows = definitions.map(def => [
                     def.word,
                     def.aliases.join('; '),
@@ -1482,24 +1487,28 @@ export class DefinitionManagerView extends ItemView {
                 break;
 
             case 'markdown':
-                content = '# Exported Definitions\n\n';
-                content += `Exported on: ${new Date().toLocaleString()}\n`;
-                content += `Total definitions: ${definitions.length}\n\n`;
+                content = `# ${t("Exported definitions")}\n\n`;
+                content += `${t("Exported on: {{date}}", { date: new Date().toLocaleString(getLocale()) })}\n`;
+                content += `${t("Total definitions: {{count}}", { count: definitions.length })}\n\n`;
 
                 definitions.forEach(def => {
                     content += `## ${def.word}\n\n`;
                     if (def.aliases.length > 0) {
-                        content += `**Aliases:** ${def.aliases.join(', ')}\n\n`;
+                        content += `**${t("Aliases")}:** ${def.aliases.join(', ')}\n\n`;
                     }
-                    content += `**Definition:** ${def.definition}\n\n`;
-                    content += `**Source:** ${def.sourceFile.name} (${def.fileType})\n\n`;
+                    content += `**${t("Definition")}:** ${def.definition}\n\n`;
+                    const typeLabel = def.fileType === DefFileType.Atomic ? t("Atomic") : t("Consolidated");
+                    content += `**${t("Source")}:** ${def.sourceFile.name} (${typeLabel})\n\n`;
                     content += '---\n\n';
                 });
                 this.downloadFile(`definitions-${timestamp}.md`, content, 'text/markdown');
                 break;
         }
 
-        new Notice(`Exported ${definitions.length} definitions as ${format.toUpperCase()}`);
+        new Notice(t("Exported {{count}} definitions as {{format}}", {
+            count: definitions.length,
+            format: format.toUpperCase()
+        }));
     }
 
     private downloadFile(filename: string, content: string, mimeType: string) {
@@ -1516,7 +1525,7 @@ export class DefinitionManagerView extends ItemView {
 
     private async showBatchDeleteModal() {
         const batchModal = new Modal(this.app);
-        batchModal.setTitle("Batch Delete Definitions");
+        batchModal.setTitle(t("Batch delete definitions"));
 
         const content = batchModal.contentEl;
 
@@ -1526,20 +1535,20 @@ export class DefinitionManagerView extends ItemView {
 		warning.style.marginBottom = "20px";
 		warning.style.borderRadius = "5px";
 		const warningTitle = warning.createDiv({ cls: "with-icon warning-title" });
-		this.setIconWithLabel(warningTitle, "alert-triangle", "Warning:");
-		warning.createDiv({ text: "This action will permanently delete the selected definitions." });
-		warning.createDiv({ text: "For atomic definitions, the entire file will be deleted." });
-		warning.createDiv({ text: "This action cannot be undone." });
+		this.setIconWithLabel(warningTitle, "alert-triangle", t("Warning:"));
+		warning.createDiv({ text: t("This action will permanently delete the selected definitions.") });
+		warning.createDiv({ text: t("For atomic definitions, the entire file will be deleted.") });
+		warning.createDiv({ text: t("This action cannot be undone.") });
 
         // 删除选项
         let deleteOption = 'filtered';
         new Setting(content)
-            .setName("Delete Scope")
-            .setDesc("Choose which definitions to delete")
+            .setName(t("Delete scope"))
+            .setDesc(t("Choose which definitions to delete"))
             .addDropdown(component => {
-                component.addOption('filtered', `Current Filter (${this.filteredDefinitions.length} definitions)`);
-                component.addOption('file', 'By Source File');
-                component.addOption('type', 'By File Type');
+                component.addOption('filtered', t("Current filter ({{count}} definitions)", { count: this.filteredDefinitions.length }));
+                component.addOption('file', t("By source file"));
+                component.addOption('type', t("By file type"));
                 component.setValue(deleteOption);
                 component.onChange(value => {
                     deleteOption = value;
@@ -1558,10 +1567,10 @@ export class DefinitionManagerView extends ItemView {
         buttonContainer.style.gap = "10px";
         buttonContainer.style.marginTop = "20px";
 
-        const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
+        const cancelBtn = buttonContainer.createEl("button", { text: t("Cancel") });
         cancelBtn.addEventListener('click', () => batchModal.close());
 
-        const deleteBtn = buttonContainer.createEl("button", { text: "Delete Selected" });
+        const deleteBtn = buttonContainer.createEl("button", { text: t("Delete selected") });
         deleteBtn.addClass("mod-warning");
         deleteBtn.addEventListener('click', () => {
             this.performBatchDelete(deleteOption, optionsContainer);
@@ -1584,17 +1593,16 @@ export class DefinitionManagerView extends ItemView {
                     const checkbox = container.createEl("label");
                     checkbox.style.display = "block";
                     checkbox.style.marginBottom = "8px";
-                    checkbox.innerHTML = `
-						<input type="checkbox" value="${filePath}" style="margin-right: 8px;">
-						${fileName} (${fileDefCount} definitions)
-					`;
+                    const input = checkbox.createEl("input", { type: "checkbox", value: filePath });
+                    input.style.marginRight = "8px";
+                    checkbox.createSpan({ text: t("{{name}} ({{count}} definitions)", { name: fileName, count: fileDefCount }) });
                 });
                 break;
 
             case 'type':
                 const typeOptions = [
-                    { value: DefFileType.Consolidated, label: 'Consolidated' },
-                    { value: DefFileType.Atomic, label: 'Atomic' }
+                    { value: DefFileType.Consolidated, label: t("Consolidated") },
+                    { value: DefFileType.Atomic, label: t("Atomic") }
                 ];
 
                 typeOptions.forEach(type => {
@@ -1603,10 +1611,9 @@ export class DefinitionManagerView extends ItemView {
                         const checkbox = container.createEl("label");
                         checkbox.style.display = "block";
                         checkbox.style.marginBottom = "8px";
-                        checkbox.innerHTML = `
-							<input type="checkbox" value="${type.value}" style="margin-right: 8px;">
-							${type.label} (${typeDefCount} definitions)
-						`;
+                        const input = checkbox.createEl("input", { type: "checkbox", value: type.value });
+                        input.style.marginRight = "8px";
+                        checkbox.createSpan({ text: t("{{name}} ({{count}} definitions)", { name: type.label, count: typeDefCount }) });
                     }
                 });
                 break;
@@ -1635,20 +1642,20 @@ export class DefinitionManagerView extends ItemView {
         }
 
         if (defsToDelete.length === 0) {
-            new Notice("No definitions selected for deletion");
+            new Notice(t("No definitions selected for deletion"));
             return;
         }
 
         // 最终确认
         const confirmModal = new Modal(this.app);
-        confirmModal.setTitle("Final Confirmation");
+        confirmModal.setTitle(t("Final confirmation"));
 
         const content = confirmModal.contentEl;
         content.createEl("p", {
-            text: `You are about to delete ${defsToDelete.length} definitions.`
+            text: t("You are about to delete {{count}} definitions.", { count: defsToDelete.length })
         });
         content.createEl("p", {
-            text: "This action cannot be undone. Are you sure?",
+            text: t("This action cannot be undone. Are you sure?"),
             cls: "mod-warning"
         });
 
@@ -1658,10 +1665,10 @@ export class DefinitionManagerView extends ItemView {
         buttonContainer.style.gap = "10px";
         buttonContainer.style.marginTop = "20px";
 
-        const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
+        const cancelBtn = buttonContainer.createEl("button", { text: t("Cancel") });
         cancelBtn.addEventListener('click', () => confirmModal.close());
 
-        const confirmBtn = buttonContainer.createEl("button", { text: "Delete All" });
+        const confirmBtn = buttonContainer.createEl("button", { text: t("Delete all") });
         confirmBtn.addClass("mod-warning");
         confirmBtn.addEventListener('click', async () => {
             confirmModal.close();
@@ -1672,7 +1679,7 @@ export class DefinitionManagerView extends ItemView {
     }
 
     private async executeBatchDelete(definitions: DefinitionWithSource[]) {
-        const notice = new Notice("Deleting definitions...", 0);
+        const notice = new Notice(t("Deleting definitions..."), 0);
         const updater = new DefFileUpdater(this.app);
         let successCount = 0;
         let errorCount = 0;
@@ -1700,9 +1707,12 @@ export class DefinitionManagerView extends ItemView {
         notice.hide();
 
         if (errorCount === 0) {
-            new Notice(`Successfully deleted ${successCount} definitions`);
+            new Notice(t("Successfully deleted {{count}} definitions", { count: successCount }));
         } else {
-            new Notice(`Deleted ${successCount} definitions, ${errorCount} failed`);
+            new Notice(t("Deleted {{success}} definitions, {{failed}} failed", {
+                success: successCount,
+                failed: errorCount
+            }));
         }
 
 		// 刷新列表

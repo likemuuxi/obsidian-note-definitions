@@ -1,6 +1,7 @@
 import { App, FuzzySuggestModal, Notice, TAbstractFile, TFile, TFolder } from "obsidian";
 import { DEF_CTX_FM_KEY, getDefFileManager } from "src/core/def-file-manager";
 import { logError } from "src/util/log";
+import { t } from "src/i18n";
 
 
 export class FMSuggestModal extends FuzzySuggestModal<TAbstractFile> {
@@ -28,7 +29,7 @@ export class FMSuggestModal extends FuzzySuggestModal<TAbstractFile> {
 			if (!currDefSource || !Array.isArray(currDefSource)) {
 				currDefSource = [];
 			} else if (currDefSource.includes(path)) {
-				new Notice("Definition file source is already included for this file");
+				new Notice(t("Definition file source is already included for this file"));
 				return;
 			}
 			
