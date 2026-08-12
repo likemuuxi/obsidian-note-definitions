@@ -3,8 +3,9 @@ import { getDefFileManager, DefManager } from "src/core/def-file-manager";
 import { DefFileUpdater } from "src/core/def-file-updater";
 import { DefFileType } from "src/core/file-type";
 import { FileParser } from "src/core/file-parser";
-import { AIService } from "src/core/ai-service";
-import { DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT, AIConfig, DEFAULT_PROVIDER_CONFIGS } from "src/settings";
+import { AIService } from "src/ai/ai-service";
+import { DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT, AIConfig } from "src/settings";
+import { getProtocol } from "src/ai/providers";
 import { t } from "src/i18n";
 
 export class AddDefinitionModal {
@@ -32,7 +33,7 @@ export class AddDefinitionModal {
 		this.app = app;
 		this.modal = new Modal(app);
 		this.saveCallback = saveCallback;
-		this.aiService = new AIService(this.getAIConfig());
+		this.aiService = new AIService(this.getAIConfig(), app);
 	}
 
 	private getAIConfig(): AIConfig {
@@ -41,10 +42,9 @@ export class AddDefinitionModal {
 		if (!settings?.aiConfig) {
 			return {
 				enabled: true,
-				currentProvider: 'openai',
+				providers: [],
 				customPrompt: DEFAULT_DEFINITION_PROMPT,
 				customAliasPrompt: DEFAULT_ALIAS_PROMPT,
-				providers: { ...DEFAULT_PROVIDER_CONFIGS },
 				folderPromptMap: {},
 				filePromptMap: {},
 				folderAliasPromptMap: {},
@@ -53,9 +53,12 @@ export class AddDefinitionModal {
 		}
 
 		// 确保enabled字段存在且为true
-		const aiConfig = { ...settings.aiConfig };
+		const aiConfig: AIConfig = { ...settings.aiConfig };
 		if (aiConfig.enabled === undefined || aiConfig.enabled === null) {
 			aiConfig.enabled = true;
+		}
+		if (!Array.isArray(aiConfig.providers)) {
+			aiConfig.providers = [];
 		}
 
 		return aiConfig;
@@ -150,13 +153,19 @@ export class AddDefinitionModal {
 				return;
 			}
 			
-			const currentProvider = this.aiService.aiConfig.currentProvider || 'openai';
-			const providers = this.aiService.aiConfig.providers;
-			const providerConfig = providers?.[currentProvider as keyof typeof providers];
-			
-			if (currentProvider !== 'ollama' && !providerConfig?.apiKey) {
-				new Notice(t("Please configure an API key in the plugin settings first"));
+			const entry = this.aiService.getActiveProvider();
+			if (!entry) {
+				new Notice(t("Please configure an AI provider in the plugin settings first"));
 				return;
+			}
+
+			const adapter = getProtocol(entry.protocol);
+			if (adapter?.needsApiKey) {
+				const apiKey = this.aiService.getApiKey(entry);
+				if (!apiKey) {
+					new Notice(t("Please configure an API key in the plugin settings first"));
+					return;
+				}
 			}
 			
 			// 获取当前选择的文件类型和路径
@@ -175,17 +184,8 @@ export class AddDefinitionModal {
 			aiButton.setText(`🔄 ${t("Generating...")}`);
 			aiButton.disabled = true;
 			aiButton.style.backgroundColor = "#a0a0a0";
-			
+
 			try {
-				// 调试信息：打印当前配置
-				// console.log("AI配置调试信息:", {
-				// 	currentProvider: this.aiService.aiConfig.currentProvider,
-				// 	providers: this.aiService.aiConfig.providers,
-				// 	enabled: this.aiService.aiConfig.enabled,
-				// 	fileType,
-				// 	targetPath
-				// });
-				
 				// 并行生成定义和别名，传递文件类型和路径信息
 				const [definition, aliases] = await Promise.all([
 					this.aiService.generateDefinition(word, fileType, targetPath),

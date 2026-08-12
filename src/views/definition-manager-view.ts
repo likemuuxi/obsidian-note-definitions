@@ -20,7 +20,6 @@ export class DefinitionManagerView extends ItemView {
     // 筛选和搜索状态
     protected searchTerm: string = '';
     protected selectedFileType: string = 'all';
-    protected selectedSourceFile: string = 'all';
     protected sortBy: string = 'name'; // name, created, modified
     protected sortOrder: string = 'asc'; // asc, desc
 
@@ -184,23 +183,6 @@ export class DefinitionManagerView extends ItemView {
                 return false;
             }
 
-            // 源文件/文件夹过滤
-            if (this.selectedSourceFile !== 'all') {
-                if (this.selectedFileType === DefFileType.Consolidated) {
-                    // Consolidated类型按文件路径过滤
-                    if (def.filePath !== this.selectedSourceFile) {
-                        return false;
-                    }
-                } else if (this.selectedFileType === DefFileType.Atomic) {
-                    // Atomic类型按文件夹路径过滤
-                    const defFolderPath = def.filePath.split('/').slice(0, -1).join('/');
-                    if (defFolderPath !== this.selectedSourceFile) {
-                        return false;
-                    }
-                }
-                // 注意：当selectedFileType为'all'时，不进行源文件过滤，显示所有类型的定义
-            }
-
             // 文件夹侧边栏过滤（包含子文件夹）
             if (this.selectedFolder !== null) {
                 const defFolderPath = def.filePath.split('/').slice(0, -1).join('/');
@@ -333,38 +315,72 @@ export class DefinitionManagerView extends ItemView {
         type TreeNode = { name: string; path: string; count: number; children: Map<string, TreeNode> };
         const root = new Map<string, TreeNode>();
 
+        // 以定义文件夹本身作为根节点，避免显示其父级/祖先文件夹
+        const defFolder = (getDefFileManager()?.getGlobalDefFolder() || "").replace(/\/+$/, "");
+        const defPrefixParts = defFolder ? defFolder.split('/') : [];
+        const defFolderName = defPrefixParts.length > 0 ? defPrefixParts[defPrefixParts.length - 1] : '';
+        const defRootNode: TreeNode | null = defPrefixParts.length > 0
+            ? { name: defFolderName, path: defFolder, count: 0, children: new Map() }
+            : null;
+        if (defRootNode) {
+            root.set(defFolderName, defRootNode);
+        }
+
         this.definitions.forEach(def => {
             const parts = def.filePath.split('/');
             const folderParts = parts.slice(0, -1); // 去掉文件名
-            let currentPath = '';
-            let currentLevel = root;
 
-            folderParts.forEach((part, idx) => {
-                currentPath = currentPath ? `${currentPath}/${part}` : part;
-                if (!currentLevel.has(part)) {
-                    currentLevel.set(part, {
-                        name: part,
-                        path: currentPath,
-                        count: 0,
-                        children: new Map()
-                    });
-                }
-                const node = currentLevel.get(part)!;
-                // 叶子文件夹累加计数
-                if (idx === folderParts.length - 1) {
-                    node.count++;
-                }
-                currentLevel = node.children;
-            });
+            // 位于定义文件夹内：以定义文件夹为根，仅展开其子文件夹
+            const underDefFolder = defRootNode !== null
+                && folderParts.length >= defPrefixParts.length
+                && folderParts.slice(0, defPrefixParts.length).join('/') === defFolder;
 
-            // 如果文件直接在根目录（无文件夹）
+            if (underDefFolder && defRootNode) {
+                const relParts = folderParts.slice(defPrefixParts.length);
+                if (relParts.length === 0) {
+                    // 文件直接位于定义文件夹内
+                    defRootNode.count++;
+                    return;
+                }
+                let currentPath = defFolder;
+                let currentLevel = defRootNode.children;
+                relParts.forEach((part, idx) => {
+                    currentPath = `${currentPath}/${part}`;
+                    if (!currentLevel.has(part)) {
+                        currentLevel.set(part, { name: part, path: currentPath, count: 0, children: new Map() });
+                    }
+                    const node = currentLevel.get(part)!;
+                    // 叶子文件夹累加计数
+                    if (idx === relParts.length - 1) {
+                        node.count++;
+                    }
+                    currentLevel = node.children;
+                });
+                return;
+            }
+
+            // 回退：未配置定义文件夹或文件不在定义文件夹内时，使用完整路径
             if (folderParts.length === 0) {
                 const rootName = '/';
                 if (!root.has(rootName)) {
                     root.set(rootName, { name: '/', path: '', count: 0, children: new Map() });
                 }
                 root.get(rootName)!.count++;
+                return;
             }
+            let currentPath = '';
+            let currentLevel = root;
+            folderParts.forEach((part, idx) => {
+                currentPath = currentPath ? `${currentPath}/${part}` : part;
+                if (!currentLevel.has(part)) {
+                    currentLevel.set(part, { name: part, path: currentPath, count: 0, children: new Map() });
+                }
+                const node = currentLevel.get(part)!;
+                if (idx === folderParts.length - 1) {
+                    node.count++;
+                }
+                currentLevel = node.children;
+            });
         });
 
         return root;
@@ -469,23 +485,11 @@ export class DefinitionManagerView extends ItemView {
 		});
 		typeDropdown.setValue(this.selectedFileType ?? "all");
 
-		/* 3. File select */
-		const fileGroup = sortControls.createDiv({ cls: "def-manager-toolbar-group" });
-		const fileSelect = fileGroup.createEl("select", { cls: "def-manager-select" });
-		this.updateFileSelect(fileSelect);
-		fileSelect.addEventListener("change", (e) => {
-			this.selectedSourceFile = (e.target as HTMLSelectElement).value;
-			this.applyFilters();
-			this.updateDefinitionList();
-		});
-
 		typeDropdown.onChange(async (value) => {
 			if (this.selectedFileType === value) return;
 			this.selectedFileType = value;
-			this.selectedSourceFile = "all";
 			await this.loadDefinitions();
 			this.updateDefinitionList();
-			this.updateFileSelect(fileSelect);
 		});
 
 		/* 4. Sort dropdown */
@@ -596,65 +600,6 @@ export class DefinitionManagerView extends ItemView {
             btn.setAttribute("aria-label", t("Switch to masonry view"));
             btn.title = t("Switch to masonry view");
         }
-    }
-
-    private updateFileSelect(fileSelect: HTMLSelectElement) {
-        fileSelect.innerHTML = '';
-
-        if (this.selectedFileType === 'all') {
-            // All Types - 不显示过滤器
-            const group = fileSelect.parentElement as HTMLElement | null;
-            if (group) group.style.display = "none";
-            fileSelect.style.display = "none";
-            return;
-        } else {
-            const group = fileSelect.parentElement as HTMLElement | null;
-            if (group) group.style.display = "flex";
-            fileSelect.style.display = "block";
-        }
-
-        if (this.selectedFileType === DefFileType.Consolidated) {
-            // Consolidated类型 - 按文件过滤
-            fileSelect.createEl("option", { value: "all", text: t("All files") });
-
-            const consolidatedFiles = new Set(
-                this.definitions
-                    .filter(def => def.fileType === DefFileType.Consolidated)
-                    .map(def => def.filePath)
-            );
-
-            Array.from(consolidatedFiles).sort().forEach(filePath => {
-                const fileName = filePath.split('/').pop() || filePath;
-                const option = fileSelect.createEl("option", {
-                    value: filePath,
-                    text: fileName
-                });
-            });
-        } else if (this.selectedFileType === DefFileType.Atomic) {
-            // Atomic类型 - 按文件夹过滤
-            fileSelect.createEl("option", { value: "all", text: t("All folders") });
-
-            const atomicFolders = new Set(
-                this.definitions
-                    .filter(def => def.fileType === DefFileType.Atomic)
-                    .map(def => {
-                        // 获取文件的父文件夹路径
-                        const pathParts = def.filePath.split('/');
-                        pathParts.pop(); // 移除文件名
-                        return pathParts.join('/');
-                    })
-            );
-
-            Array.from(atomicFolders).sort().forEach(folderPath => {
-                const folderName = folderPath.split('/').pop() || folderPath;
-                const option = fileSelect.createEl("option", {
-                    value: folderPath,
-                    text: folderName
-                });
-            });
-        }
-
-        fileSelect.value = this.selectedSourceFile;
     }
 
     protected createDefinitionList(container: Element) {

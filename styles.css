@@ -439,15 +439,6 @@ h4.with-icon {
 	overflow-x: hidden;
 }
 
-
-.def-manager-toolbar-group {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex-wrap: wrap; /* 允许换行 */
-	min-width: 0; /* 允许收缩 */
-}
-
 /* 侧边栏工具栏样式 */
 .workspace-split.mod-left-split .def-manager-toolbar,
 .workspace-split.mod-right-split .def-manager-toolbar {
@@ -457,26 +448,12 @@ h4.with-icon {
 	padding: 12px;
 }
 
-.workspace-split.mod-left-split .def-manager-toolbar-group,
-.workspace-split.mod-right-split .def-manager-toolbar-group {
-	justify-content: space-between;
-	flex-wrap: wrap;
-}
-
 @media (max-width: 768px) {
 	.def-manager-toolbar {
 		flex-direction: column;
 		align-items: stretch;
 		gap: 12px;
 	}
-	
-	.def-manager-toolbar-group {
-		justify-content: space-between;
-	}
-}
-
-.def-manager-select {
-	margin-right: 10px;
 }
 
 /* 基础按钮样式 */

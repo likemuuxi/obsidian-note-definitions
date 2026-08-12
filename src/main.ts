@@ -12,7 +12,7 @@ import { getDefinitionPopover, initDefinitionPopover } from './editor/definition
 import { postProcessor } from './editor/md-postprocessor';
 import { DEFAULT_SETTINGS, getSettings, SettingsTab } from './settings';
 import { getMarkedWordUnderCursor } from './util/editor';
-import { FileExplorerDecoration, initFileExplorerDecoration } from './ui/file-explorer';
+import { FileExplorerDecoration, initFileExplorerDecoration } from './core/file-explorer';
 import { EditDefinitionModal } from './editor/edit-modal';
 import { AddDefinitionModal } from './editor/add-modal';
 import { initDefinitionModal } from './editor/mobile/definition-modal';

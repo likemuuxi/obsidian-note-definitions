@@ -359,7 +359,6 @@ export class DefinitionSidebarView extends DefinitionManagerView {
 		typeDropdown.onChange(async (value) => {
 			if (this.selectedFileType === value) return;
 			this.selectedFileType = value;
-			this.selectedSourceFile = 'all';
 			await this.loadDefinitions();
 			this.updateDefinitionList();
 		});
