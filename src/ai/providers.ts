@@ -46,9 +46,11 @@ export interface ProtocolAdapter {
 	keyPlaceholder: string;
 
 	/**
-	 * 根据模型、密钥、baseUrl 和 prompt 文本，构建 HTTP 请求。
+	 * 根据模型、密钥、baseUrl、system skill 和 prompt 文本，构建 HTTP 请求。
+	 * systemPrompt 作为 system message 约束 AI 行为；prompt 作为 user message。
+	 * jsonMode 为 true 时，启用各协议的 JSON mode 硬约束输出格式。
 	 */
-	buildRequest(model: string, apiKey: string, baseUrl: string | undefined, prompt: string, maxTokens: number): BuiltRequest;
+	buildRequest(model: string, apiKey: string, baseUrl: string | undefined, prompt: string, maxTokens: number, systemPrompt?: string, jsonMode?: boolean): BuiltRequest;
 
 	/**
 	 * 从 API 响应 JSON 中提取文本内容。出错应 throw Error。
@@ -79,10 +81,15 @@ function parseOpenAICompatible(data: any): string {
 	}));
 }
 
-function buildOpenAIBody(model: string, prompt: string, maxTokens: number, temperature: number): any {
+function buildOpenAIBody(model: string, prompt: string, maxTokens: number, temperature: number, systemPrompt?: string): any {
+	const messages: any[] = [];
+	if (systemPrompt) {
+		messages.push({ role: 'system', content: systemPrompt });
+	}
+	messages.push({ role: 'user', content: prompt });
 	return {
 		model,
-		messages: [{ role: 'user', content: prompt }],
+		messages,
 		max_tokens: maxTokens,
 		temperature,
 	};
@@ -101,16 +108,28 @@ export const PROTOCOLS = {
 		modelsPlaceholder: 'gpt-4o, deepseek-chat, glm-4, qwen-plus, …',
 		keyPlaceholder: 'sk-...',
 
-		buildRequest(model, apiKey, baseUrl, prompt, maxTokens): BuiltRequest {
+		buildRequest(model, apiKey, baseUrl, prompt, maxTokens, systemPrompt?, jsonMode?): BuiltRequest {
 			const base = normalizeBaseUrl(baseUrl || '');
-			const url = base.endsWith('/chat/completions') ? base : `${base}/v1/chat/completions`;
+			let url: string;
+			if (base.endsWith('/chat/completions')) {
+				url = base;
+			} else if (/\/v\d+\/?$/.test(base)) {
+				// 已含版本号（如 /v4），直接追加 /chat/completions
+				url = `${base.replace(/\/+$/, '')}/chat/completions`;
+			} else {
+				url = `${base}/v1/chat/completions`;
+			}
+			const body = buildOpenAIBody(model, prompt, maxTokens, 0.7, systemPrompt);
+			if (jsonMode) {
+				body.response_format = { type: 'json_object' };
+			}
 			return {
 				url,
 				headers: {
 					Authorization: `Bearer ${apiKey}`,
 					'Content-Type': 'application/json',
 				},
-				body: buildOpenAIBody(model, prompt, maxTokens, 0.7),
+				body,
 			};
 		},
 
@@ -126,7 +145,16 @@ export const PROTOCOLS = {
 		modelsPlaceholder: 'claude-sonnet-4-20250514, claude-opus-4-20250514, …',
 		keyPlaceholder: 'sk-ant-...',
 
-		buildRequest(model, apiKey, _baseUrl, prompt, maxTokens): BuiltRequest {
+		buildRequest(model, apiKey, _baseUrl, prompt, maxTokens, systemPrompt?, _jsonMode?): BuiltRequest {
+			// Anthropic 无原生 JSON mode，依赖 system prompt 约束
+			const body: any = {
+				model,
+				max_tokens: maxTokens,
+				messages: [{ role: 'user', content: prompt }],
+			};
+			if (systemPrompt) {
+				body.system = systemPrompt;
+			}
 			return {
 				url: 'https://api.anthropic.com/v1/messages',
 				headers: {
@@ -134,11 +162,7 @@ export const PROTOCOLS = {
 					'anthropic-version': '2023-06-01',
 					'Content-Type': 'application/json',
 				},
-				body: {
-					model,
-					max_tokens: maxTokens,
-					messages: [{ role: 'user', content: prompt }],
-				},
+				body,
 			};
 		},
 
@@ -163,17 +187,24 @@ export const PROTOCOLS = {
 		modelsPlaceholder: 'llama3.2, qwen2.5, mistral, …',
 		keyPlaceholder: '',
 
-		buildRequest(model, _apiKey, baseUrl, prompt, maxTokens): BuiltRequest {
+		buildRequest(model, _apiKey, baseUrl, prompt, maxTokens, systemPrompt?, jsonMode?): BuiltRequest {
 			const base = normalizeBaseUrl(baseUrl || '');
+			const body: any = {
+				model,
+				prompt,
+				stream: false,
+				options: { temperature: 0.7, num_predict: maxTokens },
+			};
+			if (systemPrompt) {
+				body.system = systemPrompt;
+			}
+			if (jsonMode) {
+				body.format = 'json';
+			}
 			return {
 				url: `${base}/api/generate`,
 				headers: { 'Content-Type': 'application/json' },
-				body: {
-					model,
-					prompt,
-					stream: false,
-					options: { temperature: 0.7, num_predict: maxTokens },
-				},
+				body,
 			};
 		},
 

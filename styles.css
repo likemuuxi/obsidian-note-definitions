@@ -102,17 +102,45 @@
 	font-size: 1.05em;
 	font-weight: 700;
 	color: var(--interactive-accent);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.definition-popover-word:hover,
+.definition-popover-word:focus-visible {
+	color: var(--interactive-accent-hover);
+	text-decoration: underline;
 }
 
 .definition-popover-alias-text {
 	font-size: 0.9em;
 	font-style: italic;
 	color: color-mix(in srgb, var(--text-muted) 80%, var(--text-normal) 20%);
+	-webkit-user-select: text;
+	user-select: text;
+	cursor: text;
 }
 
-/* .definition-popover-body {
-	padding: 6px;
-} */
+.definition-popover-body {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+.definition-popover-body .table-wrapper {
+	overflow-x: auto;
+}
+
+.definition-popover-body table {
+	width: 100%;
+	border-collapse: collapse;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.definition-popover-body th,
+.definition-popover-body td {
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+}
 
 .definition-popover p,
 .definition-popover ul,
@@ -261,6 +289,33 @@
 	font-size: var(--modal-title-size) !important;
 	font-weight: var(--modal-title-weight) !important;
 	margin: 0 !important;
+}
+
+.ai-settings-button-inline {
+	background: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+	color: var(--text-muted) !important;
+	cursor: pointer;
+}
+
+.ai-settings-button-inline:hover {
+	background: var(--background-modifier-hover) !important;
+	border: none !important;
+	box-shadow: none !important;
+	color: var(--text-normal) !important;
+}
+
+.ai-settings-button-inline:active,
+.ai-settings-button-inline:focus,
+.ai-settings-button-inline:focus-visible {
+	border: none !important;
+	box-shadow: none !important;
+}
+
+.ai-settings-button-inline svg {
+	width: 16px;
+	height: 16px;
 }
 
 .ai-generate-button-inline {

@@ -4,7 +4,7 @@ import { DefFileUpdater } from "src/core/def-file-updater";
 import { DefFileType } from "src/core/file-type";
 import { FileParser } from "src/core/file-parser";
 import { AIService } from "src/ai/ai-service";
-import { DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT, AIConfig } from "src/settings";
+import { AIConfig } from "src/settings";
 import { getProtocol } from "src/ai/providers";
 import { t } from "src/i18n";
 
@@ -43,8 +43,6 @@ export class AddDefinitionModal {
 			return {
 				enabled: true,
 				providers: [],
-				customPrompt: DEFAULT_DEFINITION_PROMPT,
-				customAliasPrompt: DEFAULT_ALIAS_PROMPT,
 				folderPromptMap: {},
 				filePromptMap: {},
 				folderAliasPromptMap: {},
@@ -64,7 +62,7 @@ export class AddDefinitionModal {
 		return aiConfig;
 	}
 
-	open(text?: string) {
+	open(text?: string, context?: string) {
 		this.submitting = false;
 		
 		// 更新AI服务配置，确保获取最新的映射设置
@@ -74,85 +72,159 @@ export class AddDefinitionModal {
 		
 		// 清空默认标题并创建自定义标题栏
 		this.modal.titleEl.empty();
-		
+
 		const titleContainer = this.modal.titleEl.createDiv({ cls: "modal-title-with-ai" });
 		titleContainer.style.display = "flex";
 		titleContainer.style.alignItems = "center";
-		titleContainer.style.gap = "10px";
-		
-		const titleText = titleContainer.createSpan({ 
+		titleContainer.style.gap = "8px";
+
+		const titleText = titleContainer.createSpan({
 			text: t("Add Definition"),
 			cls: "modal-title-text"
 		});
 		titleText.style.fontSize = "var(--modal-title-size)";
 		titleText.style.fontWeight = "var(--modal-title-weight)";
-		
-		const aiButton = titleContainer.createEl("button", {
-			text: "✨ AI",
-			cls: "ai-generate-button-inline",
-			attr: {
-				title: t("Generate definition and aliases with AI (prompts can be customized in settings)")
-			}
+
+		// 右侧控件容器
+		const rightControls = titleContainer.createDiv();
+		rightControls.style.display = "flex";
+		rightControls.style.alignItems = "center";
+		rightControls.style.gap = "6px";
+		rightControls.style.marginLeft = "auto";
+		rightControls.style.marginRight = "36px";
+
+		// ── AI 按钮 ──
+		const aiButton = rightControls.createEl("button", {
+			cls: "mod-cta",
+			attr: { title: t("Generate definition and aliases with AI (prompts can be customized in settings)") }
 		});
-		
-		const settingsButton = titleContainer.createEl("button", {
-			text: "⚙️",
+		aiButton.style.padding = "3px 10px";
+		aiButton.style.fontSize = "12px";
+		aiButton.style.height = "auto";
+		aiButton.style.display = "flex";
+		aiButton.style.alignItems = "center";
+		aiButton.style.gap = "3px";
+		aiButton.createSpan({ text: "✨" });
+		aiButton.createSpan({ text: t("AI") });
+
+		// ── 上下文感知 toggle ──
+		const hasContext = !!(context && context.trim());
+		let contextEnabled = hasContext && (this.getAIConfig().contextAwareEnabled !== false);
+
+		const contextToggle = rightControls.createDiv();
+		contextToggle.style.display = "flex";
+		contextToggle.style.alignItems = "center";
+		contextToggle.style.gap = "5px";
+		contextToggle.style.cursor = hasContext ? "pointer" : "default";
+		contextToggle.style.padding = "3px 8px";
+		contextToggle.style.borderRadius = "6px";
+		contextToggle.style.background = "var(--background-secondary)";
+
+		if (hasContext) {
+			const preview = context!.trim().substring(0, 200) + (context!.trim().length > 200 ? '...' : '');
+			contextToggle.setAttr("title", `${t("Toggle context awareness")}\n\n${preview}`);
+		} else {
+			contextToggle.setAttr("title", t("No context available"));
+			contextToggle.style.opacity = "0.4";
+			contextToggle.style.pointerEvents = "none";
+		}
+
+		const contextLabel = contextToggle.createSpan({ text: t("Context") });
+		contextLabel.style.fontSize = "11px";
+
+		const contextDot = contextToggle.createDiv();
+		contextDot.style.width = "8px";
+		contextDot.style.height = "8px";
+		contextDot.style.borderRadius = "50%";
+		contextDot.style.flexShrink = "0";
+
+		const updateContextToggle = () => {
+			if (contextEnabled) {
+				contextDot.style.background = "var(--interactive-accent)";
+				contextLabel.style.color = "var(--interactive-accent)";
+				contextDot.style.boxShadow = "0 0 0 2px var(--interactive-accent-hover)";
+			} else {
+				contextDot.style.background = "var(--text-faint)";
+				contextLabel.style.color = "var(--text-muted)";
+				contextDot.style.boxShadow = "none";
+			}
+		};
+
+		if (hasContext) {
+			contextToggle.onclick = () => {
+				contextEnabled = !contextEnabled;
+				updateContextToggle();
+			};
+		}
+		if (!hasContext) contextEnabled = false;
+		updateContextToggle();
+
+		// ── 设置按钮 ──
+		const settingsButton = rightControls.createEl("button", {
 			cls: "ai-settings-button-inline",
 			attr: {
+				"aria-label": t("View and edit the current prompt settings"),
 				title: t("View and edit the current prompt settings")
 			}
 		});
+		settingsButton.style.padding = "3px";
+		settingsButton.style.width = "26px";
+		settingsButton.style.height = "26px";
+		settingsButton.style.display = "flex";
+		settingsButton.style.alignItems = "center";
+		settingsButton.style.justifyContent = "center";
 		setIcon(settingsButton, "settings");
-		settingsButton.style.marginLeft = "5px";
-		settingsButton.style.fontSize = "14px";
 		
 		// 添加设置按钮点击事件
 		settingsButton.addEventListener('click', () => {
 			this.showPromptSettingsModal();
 		});
 		
-		this.modal.contentEl.createDiv({
+		// ── 单栏布局 ──
+		const contentContainer = this.modal.contentEl;
+
+		contentContainer.createDiv({
 			cls: "edit-modal-section-header",
 			text: t("Word/Phrase")
-		})
-		const phraseText = this.modal.contentEl.createEl("textarea", {
+		});
+		const phraseText = contentContainer.createEl("textarea", {
 			cls: 'edit-modal-aliases',
 			attr: {
 				placeholder: t("Word/phrase to be defined")
 			},
 			text: text ?? ''
 		});
-		
-		this.modal.contentEl.createDiv({
+
+		contentContainer.createDiv({
 			cls: "edit-modal-section-header",
 			text: t("Aliases")
 		})
-		const aliasText = this.modal.contentEl.createEl("textarea", {
+		const aliasText = contentContainer.createEl("textarea", {
 			cls: 'edit-modal-aliases',
 			attr: {
 				placeholder: t("Add comma-separated aliases here")
 			},
 		});
-		
-		this.modal.contentEl.createDiv({
+
+		contentContainer.createDiv({
 			cls: "edit-modal-section-header",
 			text: t("Definition")
 		});
-		const defText = this.modal.contentEl.createEl("textarea", {
+		const defText = contentContainer.createEl("textarea", {
 			cls: 'edit-modal-textarea',
 			attr: {
 				placeholder: t("Add definition here")
 			},
 		});
 
-		// 添加AI按钮点击事件
+		// AI按钮点击事件 — 直接填充到定义和别名框
 		aiButton.addEventListener('click', async () => {
 			const word = phraseText.value.trim();
 			if (!word) {
 				new Notice(t("Please enter a word or phrase first"));
 				return;
 			}
-			
+
 			const entry = this.aiService.getActiveProvider();
 			if (!entry) {
 				new Notice(t("Please configure an AI provider in the plugin settings first"));
@@ -167,31 +239,28 @@ export class AddDefinitionModal {
 					return;
 				}
 			}
-			
+
 			// 获取当前选择的文件类型和路径
 			const fileType = this.fileTypePicker.getValue();
 			let targetPath = '';
-			
+
 			if (fileType === 'atomic') {
-				// 对于atomic类型，使用文件夹路径
-				targetPath = this.atomicFolderPicker.getValue().replace(/\/$/, ''); // 移除末尾斜杠
+				targetPath = this.atomicFolderPicker.getValue().replace(/\/$/, '');
 			} else if (fileType === 'consolidated') {
-				// 对于consolidated类型，使用文件路径
 				targetPath = this.defFilePicker.getValue();
 			}
-			
+
 			// 显示加载状态
 			aiButton.setText(`🔄 ${t("Generating...")}`);
 			aiButton.disabled = true;
 			aiButton.style.backgroundColor = "#a0a0a0";
 
 			try {
-				// 并行生成定义和别名，传递文件类型和路径信息
 				const [definition, aliases] = await Promise.all([
-					this.aiService.generateDefinition(word, fileType, targetPath),
-					this.aiService.generateAliases(word, fileType, targetPath)
+					this.aiService.generateDefinition(word, fileType, targetPath, contextEnabled ? context : undefined),
+					this.aiService.generateAliases(word, fileType, targetPath, contextEnabled ? context : undefined)
 				]);
-				
+
 				const safeDefinition = (definition || "").trim();
 				const safeAliases = Array.isArray(aliases) ? aliases.filter(a => typeof a === "string" && a.trim()) : [];
 
@@ -200,39 +269,29 @@ export class AddDefinitionModal {
 					return;
 				}
 
-				// 填充定义文本框
+				// 直接填充到定义和别名框
 				if (safeDefinition) {
 					defText.value = safeDefinition;
-				} else {
-					new Notice(t("AI did not return a definition. Please enter one manually or retry."));
-				}
-				
-				// 填充别名文本框（只有当前为空时才填充）
-				if (!aliasText.value.trim()) {
-					if (safeAliases.length > 0) {
-						aliasText.value = safeAliases.join(', ');
-					} else {
-						new Notice(t("AI did not return aliases. You can add them manually."));
-					}
 				}
 
-				// 聚焦到定义文本框以便用户编辑
+				if (!aliasText.value.trim() && safeAliases.length > 0) {
+					aliasText.value = safeAliases.join(', ');
+				}
+
 				defText.focus();
-				
+
 			} catch (error) {
 				console.error("AI生成失败详细信息:", error);
-				// 显示更详细的错误信息
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				new Notice(`❌ ${t("AI generation failed: {{error}}", { error: errorMessage })}`);
 			} finally {
-				// 恢复按钮状态
 				aiButton.setText("✨ AI");
 				aiButton.disabled = false;
 				aiButton.style.backgroundColor = "";
 			}
 		});
 
-		new Setting(this.modal.contentEl)
+		new Setting(contentContainer)
 			.setName(t("Definition file type"))
 			.addDropdown(component => {
 				component.addOption(DefFileType.Atomic, t("Atomic"));
@@ -257,7 +316,7 @@ export class AddDefinitionModal {
 		const defManager = getDefFileManager();
 		
 		// Consolidated类型的子文件夹选择器
-		this.consolidatedSubfolderPickerSetting = new Setting(this.modal.contentEl)
+		this.consolidatedSubfolderPickerSetting = new Setting(contentContainer)
 			.setName(t("Subfolder"))
 			.addDropdown(component => {
 			const sortedPaths = this.getSubfolderPaths();
@@ -273,7 +332,7 @@ export class AddDefinitionModal {
 				});
 			});
 
-		this.defFilePickerSetting = new Setting(this.modal.contentEl)
+		this.defFilePickerSetting = new Setting(contentContainer)
 			.setName(t("Definition file"))
 			.addDropdown(component => {
 				this.defFilePicker = component;
@@ -291,7 +350,7 @@ export class AddDefinitionModal {
 		const firstFolder = defFolders.length > 0 ? defFolders[0].path : "";
 		this.refreshDefFileDropdown(firstFolder);
 
-		this.atomicFolderPickerSetting = new Setting(this.modal.contentEl)
+		this.atomicFolderPickerSetting = new Setting(contentContainer)
 			.setName(t("Add file to folder"))
 			.addDropdown(component => {
 			const sortedPaths = this.getSubfolderPaths();
@@ -321,7 +380,7 @@ export class AddDefinitionModal {
 			this.atomicFolderPickerSetting.settingEl.show();
 		}
 
-		const button = this.modal.contentEl.createEl("button", {
+		const button = contentContainer.createEl("button", {
 			text: t("Save"),
 			cls: 'edit-modal-save-button',
 		});
@@ -683,7 +742,8 @@ export class AddDefinitionModal {
 		}
 		
 		const defPromptTextArea = defPromptSection.createEl("textarea");
-		defPromptTextArea.value = currentDefinitionPrompt;
+		defPromptTextArea.value = isUsingMappedDefPrompt ? currentDefinitionPrompt : '';
+		defPromptTextArea.setAttribute("placeholder", t("Enter custom prompt for this path, or leave empty to use system default"));
 		defPromptTextArea.style.width = "100%";
 		defPromptTextArea.style.height = "120px";
 		defPromptTextArea.style.resize = "vertical";
@@ -705,7 +765,8 @@ export class AddDefinitionModal {
 		}
 		
 		const aliasPromptTextArea = aliasPromptSection.createEl("textarea");
-		aliasPromptTextArea.value = currentAliasPrompt;
+		aliasPromptTextArea.value = isUsingMappedAliasPrompt ? currentAliasPrompt : '';
+		aliasPromptTextArea.setAttribute("placeholder", t("Enter custom prompt for this path, or leave empty to use system default"));
 		aliasPromptTextArea.style.width = "100%";
 		aliasPromptTextArea.style.height = "120px";
 		aliasPromptTextArea.style.resize = "vertical";
@@ -723,12 +784,6 @@ export class AddDefinitionModal {
 		const leftButtons = buttonContainer.createDiv();
 		leftButtons.style.display = "flex";
 		leftButtons.style.gap = "10px";
-
-		const resetButton = leftButtons.createEl("button", { text: t("Reset to default") });
-		resetButton.onclick = () => {
-			defPromptTextArea.value = this.aiService.aiConfig.customPrompt || '';
-			aliasPromptTextArea.value = this.aiService.aiConfig.customAliasPrompt || '';
-		};
 
 		const manageButton = leftButtons.createEl("button", { text: t("Manage mappings") });
 		manageButton.onclick = () => {
@@ -756,19 +811,50 @@ export class AddDefinitionModal {
 				return;
 			}
 
+			const defValue = defPromptTextArea.value.trim();
+			const aliasValue = aliasPromptTextArea.value.trim();
+
+			// 两者都为空时，删除该路径的映射（回退到系统默认）
+			if (!defValue && !aliasValue) {
+				const newConfig = { ...this.aiService.aiConfig };
+				if (fileType === 'atomic') {
+					delete newConfig.folderPromptMap?.[targetPath];
+					delete newConfig.folderAliasPromptMap?.[targetPath];
+				} else {
+					delete newConfig.filePromptMap?.[targetPath];
+					delete newConfig.fileAliasPromptMap?.[targetPath];
+				}
+				this.aiService.updateConfig(newConfig);
+				const settings = window.NoteDefinition.settings;
+				if (settings.aiConfig) {
+					settings.aiConfig.folderPromptMap = newConfig.folderPromptMap;
+					settings.aiConfig.filePromptMap = newConfig.filePromptMap;
+					settings.aiConfig.folderAliasPromptMap = newConfig.folderAliasPromptMap;
+					settings.aiConfig.fileAliasPromptMap = newConfig.fileAliasPromptMap;
+				}
+				if (this.saveCallback) await this.saveCallback();
+				new Notice(`✅ ${t("Prompt mapping cleared, using system default")}`);
+				modal.close();
+				return;
+			}
+
 			// 更新AI服务配置
 			const newConfig = { ...this.aiService.aiConfig };
 			
 			if (fileType === 'atomic') {
 				if (!newConfig.folderPromptMap) newConfig.folderPromptMap = {};
 				if (!newConfig.folderAliasPromptMap) newConfig.folderAliasPromptMap = {};
-				newConfig.folderPromptMap[targetPath] = defPromptTextArea.value;
-				newConfig.folderAliasPromptMap[targetPath] = aliasPromptTextArea.value;
+				if (defValue) newConfig.folderPromptMap[targetPath] = defValue;
+				else delete newConfig.folderPromptMap[targetPath];
+				if (aliasValue) newConfig.folderAliasPromptMap[targetPath] = aliasValue;
+				else delete newConfig.folderAliasPromptMap[targetPath];
 			} else {
 				if (!newConfig.filePromptMap) newConfig.filePromptMap = {};
 				if (!newConfig.fileAliasPromptMap) newConfig.fileAliasPromptMap = {};
-				newConfig.filePromptMap[targetPath] = defPromptTextArea.value;
-				newConfig.fileAliasPromptMap[targetPath] = aliasPromptTextArea.value;
+				if (defValue) newConfig.filePromptMap[targetPath] = defValue;
+				else delete newConfig.filePromptMap[targetPath];
+				if (aliasValue) newConfig.fileAliasPromptMap[targetPath] = aliasValue;
+				else delete newConfig.fileAliasPromptMap[targetPath];
 			}
 
 			this.aiService.updateConfig(newConfig);

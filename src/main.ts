@@ -111,8 +111,31 @@ export default class NoteDefinition extends Plugin {
 			name: t("Add definition"),
 			editorCallback: (editor) => {
 			const selectedText = editor.getSelection();
+			// 提取光标所在段落作为上下文
+			const cursor = editor.getCursor('from');
+			let context = '';
+			if (cursor) {
+				const line = cursor.line;
+				// 向上找段落起点（空行或文档顶部）
+				let startLine = line;
+				while (startLine > 0 && editor.getLine(startLine - 1).trim() !== '') {
+					startLine--;
+				}
+				// 向下找段落终点（空行或文档底部）
+				let endLine = line;
+				const lastLine = editor.lastLine();
+				while (endLine < lastLine && editor.getLine(endLine + 1).trim() !== '') {
+					endLine++;
+				}
+				// 提取段落文本
+				const lines: string[] = [];
+				for (let i = startLine; i <= endLine; i++) {
+					lines.push(editor.getLine(i));
+				}
+				context = lines.join('\n');
+			}
 			const addModal = new AddDefinitionModal(this.app, this.saveSettings.bind(this));
-			addModal.open(selectedText);
+			addModal.open(selectedText, context);
 		}
 		});
 
@@ -214,8 +237,29 @@ export default class NoteDefinition extends Plugin {
 						item.setTitle(t("Add definition"))
 						item.setIcon("plus")
 							.onClick(() => {
+							const sel = editor.getSelection();
+							// 提取光标所在段落作为上下文
+							const cursor = editor.getCursor('from');
+							let context = '';
+							if (cursor) {
+								const line = cursor.line;
+								let startLine = line;
+								while (startLine > 0 && editor.getLine(startLine - 1).trim() !== '') {
+									startLine--;
+								}
+								let endLine = line;
+								const lastLine = editor.lastLine();
+								while (endLine < lastLine && editor.getLine(endLine + 1).trim() !== '') {
+									endLine++;
+								}
+								const lines: string[] = [];
+								for (let i = startLine; i <= endLine; i++) {
+									lines.push(editor.getLine(i));
+								}
+								context = lines.join('\n');
+							}
 							const addModal = new AddDefinitionModal(this.app, this.saveSettings.bind(this));
-							addModal.open(editor.getSelection());
+							addModal.open(sel, context);
 						});
 					});
 				}

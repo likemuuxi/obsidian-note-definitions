@@ -42,29 +42,27 @@ export class AISettingsRenderer {
 
 		this.renderProviderList(containerEl);
 
+		// 上下文感知设置
+		new Setting(containerEl)
+			.setHeading()
+			.setName(t("AI behavior"));
+
+		new Setting(containerEl)
+			.setName(t("Context awareness"))
+			.setDesc(t("When enabled, AI will use the paragraph where the term appears as context for better results"))
+			.addToggle(component => {
+				component.setValue(this.ctx.getAIConfig().contextAwareEnabled !== false);
+				component.onChange(async (val) => {
+					this.ensureAIConfig();
+					this.ctx.getAIConfig().contextAwareEnabled = val;
+					await this.ctx.saveCallback();
+				});
+			});
+
 		// 添加Prompt映射设置
 		new Setting(containerEl)
 			.setHeading()
 			.setName(t("Prompt settings"));
-
-		new Setting(containerEl)
-			.setName(t("Default prompts"))
-			.setDesc(t("Configure default prompts for definition and alias generation"))
-			.addButton(component => {
-				component.setButtonText(t("Manage"));
-				component.onClick(() => {
-					this.showPromptEditModal('default',
-						this.ctx.getAIConfig().customPrompt || DEFAULT_DEFINITION_PROMPT,
-						this.ctx.getAIConfig().customAliasPrompt || DEFAULT_ALIAS_PROMPT,
-						async (newPrompt, newAliasPrompt) => {
-							this.ensureAIConfig();
-							this.ctx.getAIConfig().customPrompt = newPrompt;
-							this.ctx.getAIConfig().customAliasPrompt = newAliasPrompt;
-							await this.ctx.saveCallback();
-						}
-					);
-				});
-			});
 
 		new Setting(containerEl)
 			.setName(t("Folder prompt mapping (atomic)"))
@@ -332,15 +330,21 @@ export class AISettingsRenderer {
 		const notice = new Notice(t("Testing connection..."), 0);
 
 		try {
-			const { url, headers, body } = adapter.buildRequest(model, apiKey, baseUrl, "test", 10);
+			const { url, headers, body } = adapter.buildRequest(model, apiKey, baseUrl, "test", 100);
 
-			const response = await requestUrl({
-				url, method: "POST", headers, body: JSON.stringify(body),
+			// 用 fetch 而非 requestUrl，以便读取非 200 时的完整错误信息
+			const response = await fetch(url, {
+				method: "POST",
+				headers,
+				body: JSON.stringify(body),
 			});
 
-			const data = response.json;
-			if (response.status !== 200) {
-				throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+			const data = await response.json();
+
+			if (!response.ok) {
+				const errorDetail = JSON.stringify(data);
+				console.error("连接测试失败:", response.status, errorDetail);
+				throw new Error(`HTTP ${response.status}: ${errorDetail}`);
 			}
 
 			if (isTestResponseValid(protocol, data)) {
@@ -354,7 +358,7 @@ export class AISettingsRenderer {
 		} catch (error: any) {
 			notice.hide();
 			console.error("连接测试失败:", error);
-			new Notice(t("Connection test failed: {{error}}", { error: error.message }), 5000);
+			new Notice(t("Connection test failed: {{error}}", { error: error.message || String(error) }), 8000);
 		}
 	}
 

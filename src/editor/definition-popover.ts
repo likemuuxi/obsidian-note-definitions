@@ -104,7 +104,17 @@ export class DefinitionPopover extends Component {
 		});
 
 		const header = el.createDiv({ cls: "definition-popover-header" });
-		header.createEl("div", { cls: "definition-popover-word", text: def.word });
+		const wordLink = header.createEl("a", {
+			cls: "definition-popover-word",
+			text: def.word,
+			attr: { href: def.linkText }
+		});
+		wordLink.addEventListener("click", event => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.unmount();
+			void this.app.workspace.openLinkText(def.linkText, "");
+		});
 
 		if (def.aliases.length > 0 && popoverSettings.displayAliases) {
 			header.createDiv({

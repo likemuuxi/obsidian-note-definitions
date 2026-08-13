@@ -190,10 +190,8 @@ export class SecretSelectionModal extends Modal {
 
 	private loadSecrets() {
 		const all = this.app.secretStorage.listSecrets();
-		// 过滤掉 def- 前缀且值为空的密钥（删除后遗留的空壳）
-		this.secrets = (all || []).filter(k =>
-			k.startsWith(SECRET_PREFIX) && (this.app.secretStorage.getSecret(k) ?? '').length > 0
-		);
+		// 显示所有 def- 前缀的密钥
+		this.secrets = (all || []).filter(k => k.startsWith(SECRET_PREFIX));
 
 		// 尝试匹配初始值
 		if (this.initialValue && !this.selectedKey) {
@@ -277,18 +275,6 @@ export class SecretSelectionModal extends Modal {
 					this.loadSecrets();
 					this.renderList();
 				}).open();
-			};
-
-			// 删除
-			const trashBtn = actions.createEl("button");
-			setIcon(trashBtn, "trash-2");
-			this.styleIconBtn(trashBtn);
-			trashBtn.onclick = (e) => {
-				e.stopPropagation();
-				this.app.secretStorage.setSecret(key, '');
-				if (this.selectedKey === key) this.selectedKey = null;
-				this.loadSecrets();
-				this.renderList();
 			};
 		});
 	}

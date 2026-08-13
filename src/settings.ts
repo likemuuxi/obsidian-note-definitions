@@ -14,7 +14,7 @@ export {
 	PROTOCOL_TYPES, PROTOCOLS, getProtocol, protocolLabel
 } from "./ai/providers";
 
-import { AIConfig, DEFAULT_DEFINITION_PROMPT, DEFAULT_ALIAS_PROMPT } from "./ai/types";
+import { AIConfig } from "./ai/types";
 
 export enum PopoverEventSettings {
 	Hover = "hover",
@@ -85,12 +85,11 @@ export const DEFAULT_SETTINGS: Partial<Settings> = {
 		enabled: true,
 		activeProviderId: undefined,
 		providers: [],
-		customPrompt: DEFAULT_DEFINITION_PROMPT,
-		customAliasPrompt: DEFAULT_ALIAS_PROMPT,
 		folderPromptMap: {},
 		filePromptMap: {},
 		folderAliasPromptMap: {},
-		fileAliasPromptMap: {}
+		fileAliasPromptMap: {},
+		contextAwareEnabled: true
 	}
 }
 
@@ -402,15 +401,14 @@ export class SettingsTab extends PluginSettingTab {
 			getAIConfig: () => {
 				if (!this.settings.aiConfig) {
 					this.settings.aiConfig = {
-						enabled: true,
-						providers: [],
-						customPrompt: DEFAULT_DEFINITION_PROMPT,
-						customAliasPrompt: DEFAULT_ALIAS_PROMPT,
-						folderPromptMap: {},
-						filePromptMap: {},
-						folderAliasPromptMap: {},
-						fileAliasPromptMap: {}
-					};
+					enabled: true,
+					providers: [],
+					folderPromptMap: {},
+					filePromptMap: {},
+					folderAliasPromptMap: {},
+					fileAliasPromptMap: {},
+					contextAwareEnabled: true
+				};
 				}
 				return this.settings.aiConfig;
 			},
