@@ -18,5 +18,8 @@ main.js
 # obsidian
 data.json
 
+# Downloaded ECDICT runtime index
+ecdict/
+
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store

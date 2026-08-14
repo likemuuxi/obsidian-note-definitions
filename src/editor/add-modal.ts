@@ -7,6 +7,14 @@ import { AIService } from "src/ai/ai-service";
 import { AIConfig } from "src/settings";
 import { getProtocol } from "src/ai/providers";
 import { t } from "src/i18n";
+import {
+	DefinitionCandidate,
+	formatEcdictExamTag,
+	formatDefinitionCandidate,
+	getEcdictStore,
+	getDefinitionSourceMetadata,
+	getDefinitionSourceRegistry,
+} from "src/sources";
 
 export class AddDefinitionModal {
 	app: App;
@@ -183,10 +191,20 @@ export class AddDefinitionModal {
 		// ── 单栏布局 ──
 		const contentContainer = this.modal.contentEl;
 
-		contentContainer.createDiv({
-			cls: "edit-modal-section-header",
-			text: t("Word/Phrase")
+		const phraseHeader = contentContainer.createDiv({
+			cls: "edit-modal-section-header definition-lookup-heading",
 		});
+		phraseHeader.createSpan({ text: t("Word/Phrase") });
+		const lookupButton = phraseHeader.createEl("button", {
+			cls: "definition-lookup-button",
+			attr: {
+				title: t("Look up definition candidates from enabled sources"),
+				"aria-label": t("Look up definition candidates from enabled sources"),
+			},
+		});
+		const lookupButtonIcon = lookupButton.createSpan({ cls: "definition-lookup-button-icon" });
+		setIcon(lookupButtonIcon, "search");
+		lookupButton.createSpan({ text: t("Look up") });
 		const phraseText = contentContainer.createEl("textarea", {
 			cls: 'edit-modal-aliases',
 			attr: {
@@ -194,6 +212,8 @@ export class AddDefinitionModal {
 			},
 			text: text ?? ''
 		});
+		const lookupResults = contentContainer.createDiv({ cls: "definition-lookup-results" });
+		lookupResults.hide();
 
 		contentContainer.createDiv({
 			cls: "edit-modal-section-header",
@@ -215,6 +235,76 @@ export class AddDefinitionModal {
 			attr: {
 				placeholder: t("Add definition here")
 			},
+		});
+
+		lookupButton.addEventListener("click", async () => {
+			const term = phraseText.value.trim();
+			if (!term) {
+				new Notice(t("Please enter a word or phrase first"));
+				return;
+			}
+
+			const config = window.NoteDefinition.settings.definitionSourcesConfig;
+			const hasEnabledSource = Object.values(config.sources).some(source => source.enabled);
+			if (!hasEnabledSource) {
+				new Notice(t("Please enable at least one definition source in settings"));
+				return;
+			}
+
+			this.setLookupButtonLoading(lookupButton, true);
+			lookupResults.show();
+			lookupResults.empty();
+			const lookupStatus = lookupResults.createDiv({
+				cls: "definition-lookup-loading",
+				text: t("Looking up definitions..."),
+			});
+			let stopEcdictProgress: (() => void) | undefined;
+
+			try {
+				if (config.sources.ecdict?.enabled) {
+					const ecdictStore = getEcdictStore(this.app);
+					const status = await ecdictStore.getStatus();
+					if (!status.installed) {
+						lookupStatus.setText(t("Downloading and indexing ECDICT... {{percent}}%", { percent: 0 }));
+						stopEcdictProgress = ecdictStore.onProgress(progress => {
+							const percent = Math.min(100, Math.round(
+								progress.processedBytes / progress.totalBytes * 100,
+							));
+							lookupStatus.setText(t("Downloading and indexing ECDICT... {{percent}}%", { percent }));
+						});
+					}
+				}
+				const result = await getDefinitionSourceRegistry(this.app).lookup({
+					term,
+					language: config.preferredLanguage,
+					context: contextEnabled ? context : undefined,
+					limit: 6,
+				}, config);
+
+				result.failures.forEach(failure => {
+					console.warn(`Definition source ${failure.sourceId} failed`, failure.error);
+				});
+
+				this.renderDefinitionCandidates(
+					lookupResults,
+					result.candidates,
+					result.failures.length,
+					candidate => {
+						this.applyDefinitionCandidate(candidate, phraseText, aliasText, defText);
+					},
+				);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				lookupResults.empty();
+				lookupResults.createDiv({
+					cls: "definition-lookup-empty",
+					text: t("Definition lookup failed: {{error}}", { error: message }),
+				});
+				new Notice(t("Definition lookup failed: {{error}}", { error: message }));
+			} finally {
+				stopEcdictProgress?.();
+				this.setLookupButtonLoading(lookupButton, false);
+			}
 		});
 
 		// AI按钮点击事件 — 直接填充到定义和别名框
@@ -418,6 +508,177 @@ export class AddDefinitionModal {
 		});
 
 		this.modal.open();
+	}
+
+	private setLookupButtonLoading(button: HTMLButtonElement, loading: boolean): void {
+		button.disabled = loading;
+		button.empty();
+		const icon = button.createSpan({ cls: "definition-lookup-button-icon" });
+		setIcon(icon, loading ? "loader-circle" : "search");
+		if (loading) icon.addClass("definition-lookup-spinner");
+		button.createSpan({ text: loading ? t("Looking up...") : t("Look up") });
+	}
+
+	private renderDefinitionCandidates(
+		container: HTMLElement,
+		candidates: DefinitionCandidate[],
+		failureCount: number,
+		onSelect: (candidate: DefinitionCandidate) => void,
+	): void {
+		container.empty();
+		if (candidates.length === 0) {
+			container.createDiv({
+				cls: "definition-lookup-empty",
+				text: failureCount > 0
+					? t("No candidates found; {{count}} sources failed", { count: failureCount })
+					: t("No definition candidates found"),
+			});
+			return;
+		}
+
+		container.createDiv({
+			cls: "definition-lookup-results-title",
+			text: t("Definition candidates ({{count}})", { count: candidates.length }),
+		});
+
+		for (const candidate of candidates) {
+			const metadata = getDefinitionSourceMetadata(candidate.sourceId);
+			const card = container.createDiv({ cls: "definition-lookup-card" });
+			const cardHeader = card.createDiv({ cls: "definition-lookup-card-header" });
+			const heading = cardHeader.createDiv({ cls: "definition-lookup-card-heading" });
+			heading.createSpan({ text: candidate.word, cls: "definition-lookup-card-word" });
+			heading.createSpan({ text: metadata.name, cls: "definition-lookup-source-badge" });
+			const details = [candidate.entryLanguage, candidate.language.toUpperCase()]
+				.filter(Boolean)
+				.join(" · ");
+			if (details) {
+				heading.createDiv({ text: details, cls: "definition-lookup-card-language" });
+			}
+
+			const useButton = cardHeader.createEl("button", {
+				text: t("Use candidate"),
+				cls: "definition-lookup-use-button",
+			});
+			useButton.addEventListener("click", () => onSelect(candidate));
+
+			if (candidate.pronunciations && candidate.pronunciations.length > 0) {
+				card.createDiv({
+					cls: "definition-lookup-card-pronunciation",
+					text: candidate.pronunciations
+						.map(value => `/${value.text}/`)
+						.join(" · "),
+				});
+			}
+
+			const visibleSenses = candidate.senses.slice(0, 3);
+			if (visibleSenses.length > 0) {
+				const sensesEl = card.createDiv({ cls: "definition-lookup-card-senses" });
+				visibleSenses.forEach(sense => {
+					const senseEl = sensesEl.createDiv({ cls: "definition-lookup-card-sense" });
+					if (sense.partOfSpeech) {
+						senseEl.createSpan({ text: sense.partOfSpeech, cls: "definition-lookup-pos" });
+					}
+					senseEl.createSpan({ text: sense.definition });
+				});
+				if (candidate.senses.length > visibleSenses.length) {
+					sensesEl.createDiv({
+						cls: "definition-lookup-more",
+						text: t("{{count}} more senses", {
+							count: candidate.senses.length - visibleSenses.length,
+						}),
+					});
+				}
+			}
+
+			if (candidate.englishSenses && candidate.englishSenses.length > 0) {
+				card.createDiv({
+					cls: "definition-lookup-card-extra",
+					text: `${t("English definition")}: ${candidate.englishSenses
+						.slice(0, 2)
+						.map(sense => `${sense.partOfSpeech ? `${sense.partOfSpeech} ` : ""}${sense.definition}`)
+						.join("; ")}`,
+				});
+			}
+
+			const vocabularyInfoLabel = t("Vocabulary information");
+			const useChineseTags = /[\u3400-\u9fff]/.test(vocabularyInfoLabel);
+			const vocabularyInfo = [
+				candidate.oxford3000 ? `#${t("Oxford 3000").replace(/\s+/g, "")}` : "",
+				...(candidate.examTags || []).map(tag =>
+					`#${formatEcdictExamTag(tag, useChineseTags)
+						.replace(/\s+/g, useChineseTags ? "" : "-")}`),
+			].filter(Boolean);
+			if (vocabularyInfo.length > 0) {
+				card.createDiv({
+					cls: "definition-lookup-card-extra",
+					text: `${vocabularyInfoLabel}: ${vocabularyInfo.join(" ")}`,
+				});
+			}
+
+			if (candidate.aliases.length > 0) {
+				card.createDiv({
+					cls: "definition-lookup-card-aliases",
+					text: `${t("Aliases")}: ${candidate.aliases.slice(0, 8).join(", ")}`,
+				});
+			}
+
+			if (candidate.sourceUrl && candidate.sourceId !== "ecdict") {
+				const sourceLink = card.createEl("a", {
+					text: t("Open source page"),
+					href: candidate.sourceUrl,
+					cls: "definition-lookup-source-link",
+				});
+				sourceLink.setAttr("target", "_blank");
+				sourceLink.setAttr("rel", "noopener noreferrer");
+			}
+		}
+
+		if (failureCount > 0) {
+			container.createDiv({
+				cls: "definition-lookup-warning",
+				text: t("{{count}} definition sources failed; results from other sources are still shown", {
+					count: failureCount,
+				}),
+			});
+		}
+	}
+
+	private applyDefinitionCandidate(
+		candidate: DefinitionCandidate,
+		phraseText: HTMLTextAreaElement,
+		aliasText: HTMLTextAreaElement,
+		defText: HTMLTextAreaElement,
+	): void {
+		const term = phraseText.value.trim();
+		const existingAliases = aliasText.value
+			.split(/[,，]/)
+			.map(alias => alias.trim())
+			.filter(Boolean);
+		const incomingAliases = candidate.word !== term
+			? [candidate.word, ...candidate.aliases]
+			: candidate.aliases;
+		const seen = new Set<string>();
+		const aliases = [...existingAliases, ...incomingAliases].filter(alias => {
+			const key = alias.toLocaleLowerCase();
+			if (!key || key === term.toLocaleLowerCase() || seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
+		aliasText.value = aliases.join(", ");
+
+		if (candidate.senses.length > 0) {
+			defText.value = formatDefinitionCandidate(candidate, {
+				example: t("Example"),
+				source: t("Source"),
+				meaning: t("Meaning"),
+				phonetic: t("Phonetic"),
+				englishDefinition: t("English definition"),
+				vocabularyInfo: t("Vocabulary information"),
+				oxford3000: t("Oxford 3000"),
+			});
+		}
+		defText.focus();
+		new Notice(t("Definition candidate applied"));
 	}
 
 	private async createNewSubfolder() {
@@ -727,34 +988,11 @@ export class AddDefinitionModal {
 		const typeSpan = pathInfo.createDiv({ text: t("File type: {{type}}", { type: fileTypeLabel }) });
 		const pathSpan = pathInfo.createDiv({ text: t("Path: {{path}}", { path: targetPath || t("Not selected") }) });
 
-		// 定义Prompt部分
-		const defPromptSection = content.createDiv({ cls: "prompt-section" });
-		defPromptSection.style.marginBottom = "20px";
-		
-		const defPromptTitle = defPromptSection.createEl("h4", { 
-			text: t("Definition prompt {{source}}", {
-				source: t(isUsingMappedDefPrompt ? "Mapped" : "Default")
-			})
-		});
-		defPromptTitle.style.marginBottom = "10px";
-		if (isUsingMappedDefPrompt) {
-			defPromptTitle.style.color = "var(--interactive-accent)";
-		}
-		
-		const defPromptTextArea = defPromptSection.createEl("textarea");
-		defPromptTextArea.value = isUsingMappedDefPrompt ? currentDefinitionPrompt : '';
-		defPromptTextArea.setAttribute("placeholder", t("Enter custom prompt for this path, or leave empty to use system default"));
-		defPromptTextArea.style.width = "100%";
-		defPromptTextArea.style.height = "120px";
-		defPromptTextArea.style.resize = "vertical";
-		defPromptTextArea.style.fontFamily = "monospace";
-		defPromptTextArea.style.fontSize = "12px";
-
 		// 别名Prompt部分
 		const aliasPromptSection = content.createDiv({ cls: "prompt-section" });
 		aliasPromptSection.style.marginBottom = "20px";
-		
-		const aliasPromptTitle = aliasPromptSection.createEl("h4", { 
+
+		const aliasPromptTitle = aliasPromptSection.createEl("h4", {
 			text: t("Alias prompt {{source}}", {
 				source: t(isUsingMappedAliasPrompt ? "Mapped" : "Default")
 			})
@@ -763,7 +1001,7 @@ export class AddDefinitionModal {
 		if (isUsingMappedAliasPrompt) {
 			aliasPromptTitle.style.color = "var(--interactive-accent)";
 		}
-		
+
 		const aliasPromptTextArea = aliasPromptSection.createEl("textarea");
 		aliasPromptTextArea.value = isUsingMappedAliasPrompt ? currentAliasPrompt : '';
 		aliasPromptTextArea.setAttribute("placeholder", t("Enter custom prompt for this path, or leave empty to use system default"));
@@ -772,6 +1010,29 @@ export class AddDefinitionModal {
 		aliasPromptTextArea.style.resize = "vertical";
 		aliasPromptTextArea.style.fontFamily = "monospace";
 		aliasPromptTextArea.style.fontSize = "12px";
+
+		// 定义Prompt部分
+		const defPromptSection = content.createDiv({ cls: "prompt-section" });
+		defPromptSection.style.marginBottom = "20px";
+
+		const defPromptTitle = defPromptSection.createEl("h4", {
+			text: t("Definition prompt {{source}}", {
+				source: t(isUsingMappedDefPrompt ? "Mapped" : "Default")
+			})
+		});
+		defPromptTitle.style.marginBottom = "10px";
+		if (isUsingMappedDefPrompt) {
+			defPromptTitle.style.color = "var(--interactive-accent)";
+		}
+
+		const defPromptTextArea = defPromptSection.createEl("textarea");
+		defPromptTextArea.value = isUsingMappedDefPrompt ? currentDefinitionPrompt : '';
+		defPromptTextArea.setAttribute("placeholder", t("Enter custom prompt for this path, or leave empty to use system default"));
+		defPromptTextArea.style.width = "100%";
+		defPromptTextArea.style.height = "120px";
+		defPromptTextArea.style.resize = "vertical";
+		defPromptTextArea.style.fontFamily = "monospace";
+		defPromptTextArea.style.fontSize = "12px";
 
 		// 按钮容器
 		const buttonContainer = content.createDiv();

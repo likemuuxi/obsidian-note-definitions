@@ -450,6 +450,191 @@
 	box-shadow: 0px;
 }
 
+.definition-source-status {
+	display: inline-flex;
+	align-items: center;
+	margin-left: 8px;
+	padding: 1px 6px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+	color: var(--interactive-accent);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+}
+
+.definition-source-subsetting {
+	margin-left: 20px;
+	padding-left: 12px;
+	border-left: 2px solid var(--background-modifier-border);
+}
+
+.definition-source-tag-setting {
+	margin-left: 40px;
+}
+
+.definition-lookup-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.definition-lookup-button,
+.definition-lookup-use-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	height: 28px;
+	padding: 3px 9px;
+	font-size: var(--font-ui-small);
+}
+
+.definition-lookup-button-icon,
+.definition-lookup-button-icon svg {
+	display: inline-flex;
+	width: 14px;
+	height: 14px;
+}
+
+.definition-lookup-spinner {
+	animation: definition-lookup-spin 0.9s linear infinite;
+}
+
+@keyframes definition-lookup-spin {
+	to { transform: rotate(360deg); }
+}
+
+.definition-lookup-results {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	max-height: min(38vh, 360px);
+	margin: 8px 0 12px;
+	padding: 8px;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.definition-lookup-results-title {
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+}
+
+.definition-lookup-card {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+	padding: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+.definition-lookup-card-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.definition-lookup-card-heading {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	min-width: 0;
+}
+
+.definition-lookup-card-word {
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+}
+
+.definition-lookup-source-badge,
+.definition-lookup-pos {
+	display: inline-flex;
+	padding: 1px 5px;
+	border-radius: var(--radius-s);
+	background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+	color: var(--interactive-accent);
+	font-size: var(--font-ui-smaller);
+}
+
+.definition-lookup-card-language {
+	flex-basis: 100%;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.definition-lookup-card-senses {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.definition-lookup-card-sense {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	line-height: 1.45;
+	font-size: var(--font-ui-small);
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+.definition-lookup-card-sense > span:last-child {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+}
+
+.definition-lookup-card-aliases,
+.definition-lookup-card-pronunciation,
+.definition-lookup-card-extra,
+.definition-lookup-more,
+.definition-lookup-source-link,
+.definition-lookup-warning,
+.definition-lookup-empty,
+.definition-lookup-loading {
+	font-size: var(--font-ui-smaller);
+}
+
+.definition-lookup-card-aliases,
+.definition-lookup-card-pronunciation,
+.definition-lookup-card-extra,
+.definition-lookup-more,
+.definition-lookup-warning,
+.definition-lookup-empty,
+.definition-lookup-loading {
+	color: var(--text-muted);
+}
+
+.definition-lookup-source-link {
+	align-self: flex-start;
+}
+
+.definition-lookup-warning {
+	padding: 6px 8px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-error-hover);
+	color: var(--text-error);
+}
+
+@media (max-width: 520px) {
+	.definition-lookup-card-header {
+		flex-direction: column;
+	}
+
+	.definition-lookup-use-button {
+		align-self: stretch;
+	}
+}
+
 /* Definition Manager View - 三模式切换布局 */
 .def-manager-view-container {
 	height: 100%;

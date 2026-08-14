@@ -10,7 +10,7 @@ import { DefinitionSidebarView, DEFINITION_SIDEBAR_VIEW_TYPE } from './views/def
 import { Definition } from './core/model';
 import { getDefinitionPopover, initDefinitionPopover } from './editor/definition-popover';
 import { postProcessor } from './editor/md-postprocessor';
-import { DEFAULT_SETTINGS, getSettings, SettingsTab } from './settings';
+import { getSettings, normalizeSettings, SettingsTab } from './settings';
 import { getMarkedWordUnderCursor } from './util/editor';
 import { FileExplorerDecoration, initFileExplorerDecoration } from './core/file-explorer';
 import { EditDefinitionModal } from './editor/edit-modal';
@@ -32,7 +32,7 @@ export default class NoteDefinition extends Plugin {
 	async onload() {
 		// Settings are injected into global object
 		const data = await this.loadData();
-		const settings = Object.assign({}, DEFAULT_SETTINGS, data)
+		const settings = normalizeSettings(data);
 		injectGlobals(settings, this.app, window);
 
 		this.registerEvent(this.app.workspace.on('window-open', (win: WorkspaceWindow, newWindow: Window) => {

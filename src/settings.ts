@@ -2,6 +2,12 @@ import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, setTooltip } fro
 import { DefFileType } from "./core/file-type";
 import { t } from "./i18n";
 import { AISettingsRenderer } from "./ai/settings-ui";
+import { DefinitionSourcesSettingsRenderer } from "./sources/settings-ui";
+import {
+	DEFAULT_DEFINITION_SOURCES_CONFIG,
+	DefinitionSourcesConfig,
+	normalizeDefinitionSourcesConfig,
+} from "./sources";
 
 // Re-export AI modules for backward-compatible imports from other modules
 export type { AIConfig, ProviderEntry, ProviderConfig } from "./ai/types";
@@ -56,6 +62,7 @@ export interface Settings {
 	defFileParseConfig: DefFileParseConfig;
 	defPopoverConfig: DefinitionPopoverConfig;
 	aiConfig?: AIConfig;
+	definitionSourcesConfig: DefinitionSourcesConfig;
 }
 
 export const DEFAULT_DEF_FOLDER = "definitions"
@@ -90,7 +97,19 @@ export const DEFAULT_SETTINGS: Partial<Settings> = {
 		folderAliasPromptMap: {},
 		fileAliasPromptMap: {},
 		contextAwareEnabled: true
-	}
+	},
+	definitionSourcesConfig: DEFAULT_DEFINITION_SOURCES_CONFIG,
+}
+
+export function normalizeSettings(data: unknown): Settings {
+	const persisted = typeof data === "object" && data !== null
+		? data as Partial<Settings>
+		: {};
+	const settings = Object.assign({}, DEFAULT_SETTINGS, persisted) as Settings;
+	settings.definitionSourcesConfig = normalizeDefinitionSourcesConfig(
+		persisted.definitionSourcesConfig
+	);
+	return settings;
 }
 
 export class SettingsTab extends PluginSettingTab {
@@ -105,7 +124,7 @@ export class SettingsTab extends PluginSettingTab {
 		this.saveCallback = saveCallback;
 	}
 
-	activeTab: 'general' | 'ai' = 'general';
+	activeTab: 'general' | 'sources' | 'ai' = 'general';
 
 	display(): void {
 		const { containerEl } = this;
@@ -117,6 +136,8 @@ export class SettingsTab extends PluginSettingTab {
 		const contentEl = containerEl.createDiv();
 		if (this.activeTab === 'ai') {
 			this.renderAISettings(contentEl);
+		} else if (this.activeTab === 'sources') {
+			this.renderDefinitionSourcesSettings(contentEl);
 		} else {
 			this.renderGeneralSettings(contentEl);
 		}
@@ -125,11 +146,12 @@ export class SettingsTab extends PluginSettingTab {
 	private renderTabBar(containerEl: HTMLElement): void {
 		const tabBar = containerEl.createDiv();
 		tabBar.style.display = 'flex';
+		tabBar.style.flexWrap = 'wrap';
 		tabBar.style.gap = '4px';
 		tabBar.style.borderBottom = '1px solid var(--background-modifier-border)';
 		tabBar.style.marginBottom = '24px';
 
-		const createTabButton = (label: string, tab: 'general' | 'ai') => {
+		const createTabButton = (label: string, tab: 'general' | 'sources' | 'ai') => {
 			const btn = tabBar.createEl('button', { text: label });
 			const isActive = this.activeTab === tab;
 			btn.style.padding = '6px 14px';
@@ -148,6 +170,7 @@ export class SettingsTab extends PluginSettingTab {
 		};
 
 		createTabButton(t("General settings"), 'general');
+		createTabButton(t("Definition sources"), 'sources');
 		createTabButton(t("AI & Prompts"), 'ai');
 	}
 
@@ -414,6 +437,15 @@ export class SettingsTab extends PluginSettingTab {
 			},
 			saveCallback: this.saveCallback,
 			rerender: () => this.display(),
+		});
+		renderer.render(containerEl);
+	}
+
+	private renderDefinitionSourcesSettings(containerEl: HTMLElement): void {
+		const renderer = new DefinitionSourcesSettingsRenderer({
+			app: this.app,
+			getConfig: () => this.settings.definitionSourcesConfig,
+			saveCallback: this.saveCallback,
 		});
 		renderer.render(containerEl);
 	}
