@@ -327,7 +327,7 @@ export const zhCN: Record<TranslationKey, string> = {
 	"Available": "可用",
 	"Enable definition source": "启用定义来源",
 	"Look up definition candidates from enabled sources": "从已启用的来源查询候选定义",
-	"Look up": "查询定义",
+	"Look up": "查询",
 	"Looking up...": "正在查询…",
 	"Looking up definitions...": "正在查询候选定义…",
 	"Please enable at least one definition source in settings": "请先在设置中启用至少一个定义来源",

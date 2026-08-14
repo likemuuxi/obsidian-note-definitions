@@ -472,14 +472,6 @@
 	margin-left: 40px;
 }
 
-.definition-lookup-heading {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-}
-
-.definition-lookup-button,
 .definition-lookup-use-button {
 	display: inline-flex;
 	align-items: center;
@@ -488,6 +480,23 @@
 	height: 28px;
 	padding: 3px 9px;
 	font-size: var(--font-ui-small);
+}
+
+.add-definition-title-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	height: 26px;
+	padding: 3px 10px;
+	font-size: 12px;
+}
+
+.add-definition-title-action-icon,
+.add-definition-title-action-icon svg {
+	display: inline-flex;
+	width: 14px;
+	height: 14px;
 }
 
 .definition-lookup-button-icon,

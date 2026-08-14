@@ -5,7 +5,8 @@ export const ECDICT_SOURCE_URL = `https://raw.githubusercontent.com/skywind3000/
 export const ECDICT_SOURCE_SIZE = 65_933_428;
 export const ECDICT_INDEX_SCHEMA_VERSION = 2;
 
-const PLUGIN_ID = "obsidian-note-definitions";
+export const ECDICT_PLUGIN_ID = "note-definitions";
+const LEGACY_PLUGIN_ID = "obsidian-note-definitions";
 const METADATA_FILE = "metadata.json";
 const BUFFER_FLUSH_SIZE = 256 * 1024;
 const BUCKETS = [
@@ -72,10 +73,15 @@ export class EcdictStore {
 	private progressListeners = new Set<(progress: EcdictInstallProgress) => void>();
 	private loadedBucket?: { name: string; entries: Map<string, EcdictEntry> };
 	private readonly basePath: string;
+	private readonly legacyBasePath: string;
+	private migrationPromise?: Promise<void>;
 
 	constructor(private app: App) {
 		this.basePath = normalizePath(
-			`${app.vault.configDir}/plugins/${PLUGIN_ID}/ecdict`,
+			`${app.vault.configDir}/plugins/${ECDICT_PLUGIN_ID}/ecdict`,
+		);
+		this.legacyBasePath = normalizePath(
+			`${app.vault.configDir}/plugins/${LEGACY_PLUGIN_ID}/ecdict`,
 		);
 	}
 
@@ -85,6 +91,7 @@ export class EcdictStore {
 	}
 
 	async getStatus(): Promise<EcdictStoreStatus> {
+		await this.ensureLegacyCacheMigrated();
 		const metadata = await this.readMetadata();
 		return {
 			installed: metadata?.version === ECDICT_VERSION
@@ -102,6 +109,7 @@ export class EcdictStore {
 
 	async install(force = false): Promise<EcdictMetadata> {
 		if (this.installPromise) return this.installPromise;
+		await this.ensureLegacyCacheMigrated();
 		if (!force) {
 			const metadata = await this.readMetadata();
 			if (metadata?.version === ECDICT_VERSION
@@ -324,6 +332,23 @@ export class EcdictStore {
 			return value as unknown as EcdictMetadata;
 		} catch {
 			return undefined;
+		}
+	}
+
+	private async ensureLegacyCacheMigrated(): Promise<void> {
+		if (this.migrationPromise) return this.migrationPromise;
+		this.migrationPromise = this.migrateLegacyCache();
+		return this.migrationPromise;
+	}
+
+	private async migrateLegacyCache(): Promise<void> {
+		const adapter = this.app.vault.adapter;
+		if (await adapter.exists(this.basePath)) return;
+		if (!await adapter.exists(this.legacyBasePath)) return;
+		try {
+			await adapter.rename(this.legacyBasePath, this.basePath);
+		} catch (error) {
+			console.warn("Failed to migrate the legacy ECDICT cache directory", error);
 		}
 	}
 

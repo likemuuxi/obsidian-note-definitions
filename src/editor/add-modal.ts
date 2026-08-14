@@ -101,19 +101,35 @@ export class AddDefinitionModal {
 		rightControls.style.marginLeft = "auto";
 		rightControls.style.marginRight = "36px";
 
+		// ── 查询定义按钮 ──
+		const lookupButton = rightControls.createEl("button", {
+			cls: "mod-cta definition-lookup-button add-definition-title-action",
+			attr: {
+				"aria-label": t("Look up definition candidates from enabled sources"),
+			},
+		});
+		const lookupButtonIcon = lookupButton.createSpan({
+			cls: "definition-lookup-button-icon add-definition-title-action-icon",
+		});
+		setIcon(lookupButtonIcon, "search");
+		lookupButton.createSpan({ text: t("Look up") });
+
 		// ── AI 按钮 ──
 		const aiButton = rightControls.createEl("button", {
-			cls: "mod-cta",
-			attr: { title: t("Generate definition and aliases with AI (prompts can be customized in settings)") }
+			cls: "mod-cta add-definition-title-action",
+			attr: {
+				"aria-label": t("Generate definition and aliases with AI (prompts can be customized in settings)"),
+			},
 		});
-		aiButton.style.padding = "3px 10px";
-		aiButton.style.fontSize = "12px";
-		aiButton.style.height = "auto";
-		aiButton.style.display = "flex";
-		aiButton.style.alignItems = "center";
-		aiButton.style.gap = "3px";
-		aiButton.createSpan({ text: "✨" });
-		aiButton.createSpan({ text: t("AI") });
+		const setAIButtonLoading = (loading: boolean): void => {
+			aiButton.disabled = loading;
+			aiButton.empty();
+			const icon = aiButton.createSpan({ cls: "add-definition-title-action-icon" });
+			setIcon(icon, loading ? "loader-circle" : "sparkles");
+			if (loading) icon.addClass("definition-lookup-spinner");
+			aiButton.createSpan({ text: loading ? t("Generating...") : t("AI") });
+		};
+		setAIButtonLoading(false);
 
 		// ── 上下文感知 toggle ──
 		const hasContext = !!(context && context.trim());
@@ -130,9 +146,9 @@ export class AddDefinitionModal {
 
 		if (hasContext) {
 			const preview = context!.trim().substring(0, 200) + (context!.trim().length > 200 ? '...' : '');
-			contextToggle.setAttr("title", `${t("Toggle context awareness")}\n\n${preview}`);
+			contextToggle.setAttr("aria-label", `${t("Toggle context awareness")}\n\n${preview}`);
 		} else {
-			contextToggle.setAttr("title", t("No context available"));
+			contextToggle.setAttr("aria-label", t("No context available"));
 			contextToggle.style.opacity = "0.4";
 			contextToggle.style.pointerEvents = "none";
 		}
@@ -172,7 +188,6 @@ export class AddDefinitionModal {
 			cls: "ai-settings-button-inline",
 			attr: {
 				"aria-label": t("View and edit the current prompt settings"),
-				title: t("View and edit the current prompt settings")
 			}
 		});
 		settingsButton.style.padding = "3px";
@@ -191,20 +206,10 @@ export class AddDefinitionModal {
 		// ── 单栏布局 ──
 		const contentContainer = this.modal.contentEl;
 
-		const phraseHeader = contentContainer.createDiv({
-			cls: "edit-modal-section-header definition-lookup-heading",
+		contentContainer.createDiv({
+			cls: "edit-modal-section-header",
+			text: t("Word/Phrase"),
 		});
-		phraseHeader.createSpan({ text: t("Word/Phrase") });
-		const lookupButton = phraseHeader.createEl("button", {
-			cls: "definition-lookup-button",
-			attr: {
-				title: t("Look up definition candidates from enabled sources"),
-				"aria-label": t("Look up definition candidates from enabled sources"),
-			},
-		});
-		const lookupButtonIcon = lookupButton.createSpan({ cls: "definition-lookup-button-icon" });
-		setIcon(lookupButtonIcon, "search");
-		lookupButton.createSpan({ text: t("Look up") });
 		const phraseText = contentContainer.createEl("textarea", {
 			cls: 'edit-modal-aliases',
 			attr: {
@@ -341,9 +346,7 @@ export class AddDefinitionModal {
 			}
 
 			// 显示加载状态
-			aiButton.setText(`🔄 ${t("Generating...")}`);
-			aiButton.disabled = true;
-			aiButton.style.backgroundColor = "#a0a0a0";
+			setAIButtonLoading(true);
 
 			try {
 				const [definition, aliases] = await Promise.all([
@@ -375,9 +378,7 @@ export class AddDefinitionModal {
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				new Notice(`❌ ${t("AI generation failed: {{error}}", { error: errorMessage })}`);
 			} finally {
-				aiButton.setText("✨ AI");
-				aiButton.disabled = false;
-				aiButton.style.backgroundColor = "";
+				setAIButtonLoading(false);
 			}
 		});
 
@@ -513,7 +514,9 @@ export class AddDefinitionModal {
 	private setLookupButtonLoading(button: HTMLButtonElement, loading: boolean): void {
 		button.disabled = loading;
 		button.empty();
-		const icon = button.createSpan({ cls: "definition-lookup-button-icon" });
+		const icon = button.createSpan({
+			cls: "definition-lookup-button-icon add-definition-title-action-icon",
+		});
 		setIcon(icon, loading ? "loader-circle" : "search");
 		if (loading) icon.addClass("definition-lookup-spinner");
 		button.createSpan({ text: loading ? t("Looking up...") : t("Look up") });
@@ -1053,7 +1056,7 @@ export class AddDefinitionModal {
 			// @ts-ignore
 			this.app.setting.open();
 			// @ts-ignore
-			this.app.setting.openTabById('obsidian-note-definitions');
+			this.app.setting.openTabById('note-definitions');
 		};
 
 		// 右侧按钮组
